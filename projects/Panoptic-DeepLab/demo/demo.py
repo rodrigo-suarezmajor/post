@@ -1,4 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
+# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 import argparse
 import glob
 import multiprocessing as mp
@@ -11,8 +11,6 @@ from detectron2.config import get_cfg
 from detectron2.data.detection_utils import read_image
 from detectron2.utils.logger import setup_logger
 
-from predictor import VisualizationDemo
-
 # constants
 WINDOW_NAME = "COCO detections"
 
@@ -21,8 +19,8 @@ def setup_cfg(args):
     # load config from file and command-line arguments
     cfg = get_cfg()
     # To use demo for Panoptic-DeepLab, please uncomment the following two lines.
-    # from detectron2.projects.panoptic_deeplab import add_panoptic_deeplab_config  # noqa
-    # add_panoptic_deeplab_config(cfg)
+    from detectron2.projects.panoptic_deeplab import add_panoptic_deeplab_config  # noqa
+    add_panoptic_deeplab_config(cfg)
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
     # Set score_threshold for builtin models
@@ -143,7 +141,7 @@ if __name__ == "__main__":
                 filename=output_fname,
                 # some installation of opencv may not support x264 (due to its license),
                 # you can try other format (e.g. MPEG)
-                fourcc=cv2.VideoWriter_fourcc(*"MPEG"),
+                fourcc=cv2.VideoWriter_fourcc(*"x264"),
                 fps=float(frames_per_second),
                 frameSize=(width, height),
                 isColor=True,
