@@ -13,7 +13,7 @@ import detectron2.data.transforms as T
 import detectron2.utils.comm as comm
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.config import get_cfg
-from detectron2.data import MetadataCatalog, build_detection_train_loader
+from detectron2.data import MetadataCatalog, build_detection_train_loader, build_detection_test_loader
 from detectron2.engine import DefaultTrainer, default_argument_parser, default_setup, launch
 from detectron2.evaluation import (
     CityscapesInstanceEvaluator,
@@ -21,6 +21,7 @@ from detectron2.evaluation import (
     COCOEvaluator,
     COCOPanopticEvaluator,
     DatasetEvaluators,
+    inference_on_dataset
 )
 from detectron2.projects.deeplab import build_lr_scheduler
 from detectron2.projects.panoptic_deeplab import (
@@ -29,6 +30,7 @@ from detectron2.projects.panoptic_deeplab import (
 )
 from detectron2.solver import get_default_optimizer_params
 from detectron2.solver.build import maybe_add_gradient_clipping
+import kitti_mots
 
 
 def build_sem_seg_train_aug(cfg):
@@ -154,8 +156,12 @@ def main(args):
         DetectionCheckpointer(model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
             cfg.MODEL.WEIGHTS, resume=args.resume
         )
-        res = Trainer.test(cfg, model)
-        return res
+        kitti_mots.register()
+        test_loader = build_detection_test_loader(cfg, "kitti_mots")
+        inference_on_dataset(model, test_loader, None)
+        #res = Trainer.test(cfg, model)
+        #return res
+        return print('eval done')
 
     trainer = Trainer(cfg)
     trainer.resume_or_load(resume=args.resume)
