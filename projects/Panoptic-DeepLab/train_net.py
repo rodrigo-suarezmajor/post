@@ -151,17 +151,24 @@ def setup(args):
 def main(args):
     cfg = setup(args)
 
-    if args.eval_only:
+    if args.inference_only:
         model = Trainer.build_model(cfg)
         DetectionCheckpointer(model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
             cfg.MODEL.WEIGHTS, resume=args.resume
         )
         kitti_mots.register()
-        test_loader = build_detection_test_loader(cfg, "kitti_mots")
+        test_loader = build_detection_test_loader(cfg, "kitti_mots_val")
         inference_on_dataset(model, test_loader, None)
-        #res = Trainer.test(cfg, model)
-        #return res
-        return print('eval done')
+        return print('inference done')
+
+    if args.eval_only:
+        model = Trainer.build_model(cfg)
+        DetectionCheckpointer(model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
+            cfg.MODEL.WEIGHTS, resume=args.resume
+        )
+        res = Trainer.test(cfg, model)
+        return res
+        
 
     trainer = Trainer(cfg)
     trainer.resume_or_load(resume=args.resume)

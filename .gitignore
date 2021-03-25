@@ -51,3 +51,7 @@ _darcs
 /projects/*/datasets
 /models
 /snippet
+demo/input/
+demo/output/
+/projects/Panoptic-DeepLab/datasets
+/projects/Panoptic-DeepLab/models
