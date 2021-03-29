@@ -31,6 +31,7 @@ from detectron2.projects.panoptic_deeplab import (
 from detectron2.solver import get_default_optimizer_params
 from detectron2.solver.build import maybe_add_gradient_clipping
 import kitti_mots
+import kitti_mots_evaluation
 
 
 def build_sem_seg_train_aug(cfg):
@@ -158,7 +159,7 @@ def main(args):
         )
         kitti_mots.register()
         test_loader = build_detection_test_loader(cfg, "kitti_mots_val")
-        inference_on_dataset(model, test_loader, None)
+        inference_on_dataset(model, test_loader, kitti_mots_evaluation.KittiMotsEvaluator())
         return print('inference done')
 
     if args.eval_only:

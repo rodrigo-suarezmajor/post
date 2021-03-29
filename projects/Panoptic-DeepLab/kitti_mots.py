@@ -4,13 +4,18 @@ from detectron2.data import DatasetCatalog
 
 def get_kitti_mots(path):
     images = []
-    for sequence in os.listdir(path):
-        image_list = os.listdir(os.path.join(path,sequence))
+    for sequence in sorted(os.listdir(path)):
+        image_list = sorted(os.listdir(os.path.join(path,sequence)))
         #get the height and width of the sequence
-        height, width, _ = cv2.imread(os.path.join(path,sequence,image_list[0])).shape
+        height, width, _ = cv2.imread(
+            os.path.join(path,sequence,image_list[0])
+            ).shape
         for frame in image_list:
-            image_id = sequence + frame
-            image = {'file_name': os.path.join(path,sequence,frame), 'height': height, 'width': width, 'image_id': image_id}
+            image = {
+                'file_name': os.path.join(path,sequence,frame), 
+                'height': height, 
+                'width': width, 
+                'sequence': sequence}
             images.append(image)
     return images
 
@@ -21,4 +26,4 @@ def register():
             lambda d=d: get_kitti_mots("./datasets/kitti_mots/" + d)
             )
 
-#get_kitti_mots("./detectron2/projects/Panoptic-DeepLab/datasets/kitti_mots/train/")
+#get_kitti_mots("./datasets/kitti_mots/train/")
