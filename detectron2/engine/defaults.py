@@ -88,6 +88,7 @@ Run on multiple machines:
         "See documentation of `DefaultTrainer.resume_or_load()` for what it means.",
     )
     parser.add_argument("--eval-only", action="store_true", help="perform evaluation only")
+    parser.add_argument("--inference-only", action="store_true", help="perform inference only without evaluation")
     parser.add_argument("--num-gpus", type=int, default=1, help="number of gpus *per machine*")
     parser.add_argument("--num-machines", type=int, default=1, help="total number of machines")
     parser.add_argument(
