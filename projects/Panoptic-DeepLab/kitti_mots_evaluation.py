@@ -28,12 +28,12 @@ class _Instance:
 
 
 class KittiMotsEvaluator():
-    def __init__(self):
+    def __init__(self, dataset_name):
         self._num_objects = 0
         self._old_instances = []
         self._output_dir = './output/data'
         self._cpu_device = torch.device("cpu")
-        self._thing_classes = MetadataCatalog.get('cityscapes_fine_panoptic_train').thing_classes
+        self._thing_classes = MetadataCatalog.get(dataset_name).thing_classes
         self._car = ['car', 'truck', 'bus', 'motorcycle']
         self._pedestrian = ['person', 'rider']
 
@@ -54,7 +54,7 @@ class KittiMotsEvaluator():
             instances = []
             for i in range(len(raw_instances)):
                 pred_class = raw_instances.pred_classes[i]
-                kitti_mots_class = self._cityscapes_to_kitti_mots(pred_class)
+                kitti_mots_class = self._to_kitti_mots(pred_class)
                 # check if the class is tracked in kitti mots
                 if kitti_mots_class is None: 
                     continue
@@ -98,7 +98,7 @@ class KittiMotsEvaluator():
     def evaluate(self):
         pass
 
-    def _cityscapes_to_kitti_mots(self, pred_class):
+    def _to_kitti_mots(self, pred_class):
         thing_class = self._thing_classes[pred_class]
         if thing_class in self._car:
             return 1
