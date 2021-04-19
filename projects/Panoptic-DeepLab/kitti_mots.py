@@ -15,7 +15,8 @@ def get_kitti_mots(path):
                 'file_name': os.path.join(path,sequence,frame), 
                 'height': height, 
                 'width': width, 
-                'sequence': sequence}
+                'sequence': sequence
+                }
             images.append(image)
     return images
 
