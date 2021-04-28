@@ -597,7 +597,7 @@ def build_prev_offset_head(cfg, input_shape):
     return INS_EMBED_BRANCHES_REGISTRY.get(name)(cfg, input_shape)
 
 @INS_EMBED_BRANCHES_REGISTRY.register()
-class PanopticDeepLabPreOffsetHead(DeepLabV3PlusHead):
+class PanopticDeepLabPrevOffsetHead(DeepLabV3PlusHead):
     """
     Instance offset of the previous frame to the current center
     """
@@ -610,7 +610,7 @@ class PanopticDeepLabPreOffsetHead(DeepLabV3PlusHead):
         decoder_channels: List[int],
         norm: Union[str, Callable],
         head_channels: int,
-        offset_loss_weight: float,
+        prev_offset_loss_weight: float,
         **kwargs,
     ):
         """
@@ -698,7 +698,7 @@ class PanopticDeepLabPreOffsetHead(DeepLabV3PlusHead):
             norm=cfg.MODEL.PREV_OFFSET_HEAD.NORM,
             train_size=train_size,
             head_channels=cfg.MODEL.PREV_OFFSET_HEAD.HEAD_CHANNELS,
-            prev_offset_loss_weight=cfg.MODEL.PREV_OFFSET_HEAD.OFFSET_LOSS_WEIGHT,
+            prev_offset_loss_weight=cfg.MODEL.PREV_OFFSET_HEAD.PREV_OFFSET_LOSS_WEIGHT,
             use_depthwise_separable_conv=cfg.MODEL.SEM_SEG_HEAD.USE_DEPTHWISE_SEPARABLE_CONV,
         )
         return ret

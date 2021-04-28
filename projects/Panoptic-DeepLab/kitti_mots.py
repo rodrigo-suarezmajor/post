@@ -1,6 +1,8 @@
 import os
+from pycocotools import mask as pycoco_mask
 import cv2
-from detectron2.data import DatasetCatalog
+from detectron2.data import DatasetCatalog, MetadataCatalog
+from detectron2.structures import BoxMode
 
 def get_kitti_mots(path):
     images = []
@@ -25,7 +27,10 @@ def get_kitti_mots(path):
                 'size': [int(fields[3]), int(fields[4])], 
                 'counts': fields[5].encode(encoding='UTF-8')
                 }
+            bbox = pycoco_mask.toBbox(mask)
             instance = {
+                'bbox': bbox,
+                'bbox_mode': BoxMode.XYXY_ABS,
                 'object_id:': object_id,
                 'category_id': class_id,
                 'segmentation': mask
@@ -49,6 +54,7 @@ def get_kitti_mots(path):
             else:
                 annotations = []
 
+
             image = {
                 'file_name': os.path.join(path, sequence, image_name), 
                 'height': height, 
@@ -65,5 +71,12 @@ def register():
             "kitti_mots_" + d,
             lambda d=d: get_kitti_mots("./datasets/kitti_mots/" + d)
             )
+    MetadataCatalog.get("kitti_mots_train").set(
+        ignore_label=10,
+        thing_dataset_id_to_contiguous_id={'1': 0, '2': 1, '10': 2}
+    )
 
-# get_kitti_mots("./datasets/kitti_mots/train/")
+
+k = get_kitti_mots("./datasets/kitti_mots/train/")
+print(k[0])
+print(k[1])
