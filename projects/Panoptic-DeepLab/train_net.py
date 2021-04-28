@@ -159,7 +159,8 @@ def main(args):
         )
         kitti_mots.register()
         test_loader = build_detection_test_loader(cfg, "kitti_mots_val")
-        inference_on_dataset(model, test_loader, kitti_mots_evaluation.KittiMotsEvaluator())
+        evaluator = kitti_mots_evaluation.KittiMotsEvaluator(cfg.DATASETS.TRAIN[0])
+        inference_on_dataset(model, test_loader, evaluator)
         return print('inference done')
 
     if args.eval_only:
