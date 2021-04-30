@@ -55,3 +55,7 @@ demo/input/
 demo/output/
 /projects/Panoptic-DeepLab/datasets
 /projects/Panoptic-DeepLab/models
+/projects/Panoptic-DeepLab/output
+/projects/Post/datasets
+/projects/Post/models
+/projects/Post/output

@@ -44,7 +44,6 @@ class PanopticDeepLab(nn.Module):
         self.backbone = build_backbone(cfg)
         self.sem_seg_head = build_sem_seg_head(cfg, self.backbone.output_shape())
         self.ins_embed_head = build_ins_embed_branch(cfg, self.backbone.output_shape())
-        self.prev_offset_head = build_prev_offset_head(cfg, self.backbone.output_shape())
         self.register_buffer("pixel_mean", torch.Tensor(cfg.MODEL.PIXEL_MEAN).view(-1, 1, 1), False)
         self.register_buffer("pixel_std", torch.Tensor(cfg.MODEL.PIXEL_STD).view(-1, 1, 1), False)
         self.meta = MetadataCatalog.get(cfg.DATASETS.TRAIN[0])
@@ -96,10 +95,8 @@ class PanopticDeepLab(nn.Module):
             else self.backbone.size_divisibility
         )
         images = ImageList.from_tensors(images, size_divisibility)
-        # Features: the output of the backbone for frame t
-        features = self.backbone(images[1:].tensor)
-        # Previous features: output of the backbone for frame t-1
-        prev_features = self.backbone(images[:-1].tensor)
+
+        features = self.backbone(images.tensor)
 
         losses = {}
         if "sem_seg" in batched_inputs[0]:
@@ -144,22 +141,6 @@ class PanopticDeepLab(nn.Module):
         )
         losses.update(center_losses)
         losses.update(offset_losses)
-
-        if 'prev_offset' in batched_inputs[0]:
-            pass
-        else:
-            prev_offset_targets = None
-            prev_offset_weights = None        
-
-        # Concatenate the features for tracking
-        features = torch.cat((features, prev_features), 0)
-        # Calls the 'forward' function of 'prev_offset_head' 
-        # in training results are None and in inference losses are empty {}
-        prev_offset_results, prev_offset_losses = self.prev_offset_head(
-            features, prev_offset_targets, prev_offset_weights
-        )
-
-        losses.update(prev_offset_losses)
 
         if self.training:
             return losses
@@ -587,168 +568,4 @@ class PanopticDeepLabInsEmbedHead(DeepLabV3PlusHead):
         else:
             loss = loss.sum() * 0
         losses = {"loss_offset": loss * self.offset_loss_weight}
-        return losses
-
-def build_prev_offset_head(cfg, input_shape):
-    """
-    Build a instance embedding branch from `cfg.MODEL.PREV_OFFSET_HEAD.NAME`.
-    """
-    name = cfg.MODEL.PREV_OFFSET_HEAD.NAME
-    return INS_EMBED_BRANCHES_REGISTRY.get(name)(cfg, input_shape)
-
-@INS_EMBED_BRANCHES_REGISTRY.register()
-class PanopticDeepLabPrevOffsetHead(DeepLabV3PlusHead):
-    """
-    Instance offset of the previous frame to the current center
-    """
-
-    @configurable
-    def __init__(
-        self,
-        input_shape: Dict[str, ShapeSpec],
-        *,
-        decoder_channels: List[int],
-        norm: Union[str, Callable],
-        head_channels: int,
-        prev_offset_loss_weight: float,
-        **kwargs,
-    ):
-        """
-        NOTE: this interface is experimental.
-
-        Args:
-            input_shape (ShapeSpec): shape of the input feature
-            decoder_channels (list[int]): a list of output channels of each
-                decoder stage. It should have the same length as "in_features"
-                (each element in "in_features" corresponds to one decoder stage).
-            norm (str or callable): normalization for all conv layers.
-            head_channels (int): the output channels of extra convolutions
-                between decoder and predictor.
-            offset_loss_weight (float): loss weight for center offset prediction.
-        """
-        super().__init__(input_shape, decoder_channels=decoder_channels, norm=norm, **kwargs)
-        # 'decoder_only' should be false because 'num_classes' was not passed
-        assert self.decoder_only
-
-        self.prev_offset_loss_weight = prev_offset_loss_weight
-        use_bias = norm == ""
-        
-        # prev_offset prediction
-        # `head` is additional transform before predictor
-        if self.use_depthwise_separable_conv:
-            # We use a single 5x5 DepthwiseSeparableConv2d to replace
-            # 2 3x3 Conv2d since they have the same receptive field.
-            self.prev_offset_head = DepthwiseSeparableConv2d(
-                decoder_channels[0],
-                head_channels,
-                kernel_size=5,
-                padding=2,
-                norm1=norm,
-                activation1=F.relu,
-                norm2=norm,
-                activation2=F.relu,
-            )
-        else:
-            self.prev_offset_head = nn.Sequential(
-                Conv2d(
-                    decoder_channels[0],
-                    decoder_channels[0],
-                    kernel_size=3,
-                    padding=1,
-                    bias=use_bias,
-                    norm=get_norm(norm, decoder_channels[0]),
-                    activation=F.relu,
-                ),
-                Conv2d(
-                    decoder_channels[0],
-                    head_channels,
-                    kernel_size=3,
-                    padding=1,
-                    bias=use_bias,
-                    norm=get_norm(norm, head_channels),
-                    activation=F.relu,
-                ),
-            )
-            weight_init.c2_xavier_fill(self.prev_offset_head[0])
-            weight_init.c2_xavier_fill(self.prev_offset_head[1])
-        self.prev_offset_predictor = Conv2d(head_channels, 2, kernel_size=1)
-        nn.init.normal_(self.prev_offset_predictor.weight, 0, 0.001)
-        nn.init.constant_(self.prev_offset_predictor.bias, 0)
-
-        self.prev_offset_loss = nn.L1Loss(reduction="none")
-
-    @classmethod
-    def from_config(cls, cfg, input_shape):
-        if cfg.INPUT.CROP.ENABLED:
-            assert cfg.INPUT.CROP.TYPE == "absolute"
-            train_size = cfg.INPUT.CROP.SIZE
-        else:
-            train_size = None
-        decoder_channels = [cfg.MODEL.PREV_OFFSET_HEAD.CONVS_DIM] * (
-            len(cfg.MODEL.PREV_OFFSET_HEAD.IN_FEATURES) - 1
-        ) + [cfg.MODEL.PREV_OFFSET_HEAD.ASPP_CHANNELS]
-        ret = dict(
-            input_shape=input_shape,
-            in_features=cfg.MODEL.PREV_OFFSET_HEAD.IN_FEATURES,
-            project_channels=cfg.MODEL.PREV_OFFSET_HEAD.PROJECT_CHANNELS,
-            aspp_dilations=cfg.MODEL.PREV_OFFSET_HEAD.ASPP_DILATIONS,
-            aspp_dropout=cfg.MODEL.PREV_OFFSET_HEAD.ASPP_DROPOUT,
-            decoder_channels=decoder_channels,
-            common_stride=cfg.MODEL.PREV_OFFSET_HEAD.COMMON_STRIDE,
-            norm=cfg.MODEL.PREV_OFFSET_HEAD.NORM,
-            train_size=train_size,
-            head_channels=cfg.MODEL.PREV_OFFSET_HEAD.HEAD_CHANNELS,
-            prev_offset_loss_weight=cfg.MODEL.PREV_OFFSET_HEAD.PREV_OFFSET_LOSS_WEIGHT,
-            use_depthwise_separable_conv=cfg.MODEL.SEM_SEG_HEAD.USE_DEPTHWISE_SEPARABLE_CONV,
-        )
-        return ret
-
-    def forward(
-        self,
-        features,
-        prev_offset_targets=None,
-        prev_offset_weights=None,
-    ):
-        """
-        Returns:
-            In training, returns (None, dict of losses)
-            In inference, returns (CxHxW logits, {})
-        """
-
-        prev_offset = self.layers(features)
-        if self.training:
-            return (
-                None,
-                self.prev_offset_losses(prev_offset, prev_offset_targets, prev_offset_weights),
-            )
-        else:
-            prev_offset = (
-                F.interpolate(
-                    prev_offset, scale_factor=self.common_stride, mode="bilinear", align_corners=False
-                )
-                * self.common_stride
-            )
-            return prev_offset, {}
-
-    def layers(self, features):
-        assert self.decoder_only
-        y = super().layers(features)
-        # prev_offset
-        prev_offset = self.prev_offset_head(y)
-        prev_offset = self.prev_offset_predictor(prev_offset)
-        return prev_offset
-
-    def prev_offset_losses(self, predictions, targets, weights):
-        predictions = (
-            F.interpolate(
-                predictions, scale_factor=self.common_stride, mode="bilinear", align_corners=False
-            )
-            * self.common_stride
-        )
-        loss = self.prev_offset_loss(predictions, targets) * weights
-        if weights.sum() > 0:
-            loss = loss.sum() / weights.sum()
-        else:
-            loss = loss.sum() * 0
-        losses = {"loss_prev_offset": loss * self.prev_offset_loss_weight}
         return losses
