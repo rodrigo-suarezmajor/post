@@ -1,39 +1,28 @@
-# Panoptic-DeepLab: A Simple, Strong, and Fast Baseline for Bottom-Up Panoptic Segmentation
-
-Bowen Cheng, Maxwell D. Collins, Yukun Zhu, Ting Liu, Thomas S. Huang, Hartwig Adam, Liang-Chieh Chen
-
-[[`arXiv`](https://arxiv.org/abs/1911.10194)] [[`BibTeX`](#CitingPanopticDeepLab)] [[`Reference implementation`](https://github.com/bowenc0221/panoptic-deeplab)]
-
-<div align="center">
-  <img src="https://github.com/bowenc0221/panoptic-deeplab/blob/master/docs/panoptic_deeplab.png"/>
-</div><br/>
+# POST: Panoptic Segmentation and Tracking
 
 ## Installation
 Install Detectron2 following [the instructions](https://detectron2.readthedocs.io/tutorials/install.html).
-To use cityscapes, prepare data follow the [tutorial](https://detectron2.readthedocs.io/tutorials/builtin_datasets.html#expected-dataset-structure-for-cityscapes).
 
 ## Training
 
-To train a model with 8 GPUs run:
+To train a model with run:
 ```bash
-cd /path/to/detectron2/projects/Panoptic-DeepLab
-python train_net.py --config-file configs/Cityscapes-PanopticSegmentation/panoptic_deeplab_R_52_os16_mg124_poly_90k_bs32_crop_512_1024_dsconv.yaml --num-gpus 8
-```
+cd /path/to/detectron2/projects/Post
+python train_net.py --config-file configs/KITTI-MOTS/panoptic_deeplab_R_52_os16_mg124_poly_200k_bs64_crop_640_640_kitti_mots_dsconv.yaml
 
-## Evaluation
+## Inference
 
 Model evaluation can be done similarly:
 ```bash
-cd /path/to/detectron2/projects/Panoptic-DeepLab
-python train_net.py --config-file configs/Cityscapes-PanopticSegmentation/panoptic_deeplab_R_52_os16_mg124_poly_90k_bs32_crop_512_1024_dsconv.yaml --eval-only MODEL.WEIGHTS /path/to/model_checkpoint
+cd /path/to/detectron2/projects/Post
+python train_net.py --config-file configs/KITTI-MOTS/panoptic_deeplab_R_52_os16_mg124_poly_200k_bs64_crop_640_640_kitti_mots_dsconv.yaml --inference-only MODEL.WEIGHTS models/model_final_5e6da2.pkl INPUT.CROP.ENABLED False
 ```
-
 ## Benchmark network speed
 
 If you want to benchmark the network speed without post-processing, you can run the evaluation script with `MODEL.PANOPTIC_DEEPLAB.BENCHMARK_NETWORK_SPEED True`:
 ```bash
-cd /path/to/detectron2/projects/Panoptic-DeepLab
-python train_net.py --config-file configs/Cityscapes-PanopticSegmentation/panoptic_deeplab_R_52_os16_mg124_poly_90k_bs32_crop_512_1024_dsconv.yaml --eval-only MODEL.WEIGHTS /path/to/model_checkpoint MODEL.PANOPTIC_DEEPLAB.BENCHMARK_NETWORK_SPEED True
+cd /path/to/detectron2/projects/Poar
+python train_net.py --config-file configs/KITTI-MOTS/panoptic_deeplab_R_52_os16_mg124_poly_200k_bs64_crop_640_640_kitti_mots_dsconv.yaml --eval-only MODEL.WEIGHTS /path/to/model_checkpoint MODEL.PANOPTIC_DEEPLAB.BENCHMARK_NETWORK_SPEED True
 ```
 
 ## Cityscapes Panoptic Segmentation
@@ -148,28 +137,3 @@ Note:
   outputs now takes more time than the network itself. Please refer to speed in the original paper for comparison.
 - DSConv refers to using DepthwiseSeparableConv2d in ASPP and decoder.
 
-## <a name="CitingPanopticDeepLab"></a>Citing Panoptic-DeepLab
-
-If you use Panoptic-DeepLab, please use the following BibTeX entry.
-
-*   CVPR 2020 paper:
-
-```
-@inproceedings{cheng2020panoptic,
-  title={Panoptic-DeepLab: A Simple, Strong, and Fast Baseline for Bottom-Up Panoptic Segmentation},
-  author={Cheng, Bowen and Collins, Maxwell D and Zhu, Yukun and Liu, Ting and Huang, Thomas S and Adam, Hartwig and Chen, Liang-Chieh},
-  booktitle={CVPR},
-  year={2020}
-}
-```
-
-*   ICCV 2019 COCO-Mapillary workshp challenge report:
-
-```
-@inproceedings{cheng2019panoptic,
-  title={Panoptic-DeepLab},
-  author={Cheng, Bowen and Collins, Maxwell D and Zhu, Yukun and Liu, Ting and Huang, Thomas S and Adam, Hartwig and Chen, Liang-Chieh},
-  booktitle={ICCV COCO + Mapillary Joint Recognition Challenge Workshop},
-  year={2019}
-}
-```
