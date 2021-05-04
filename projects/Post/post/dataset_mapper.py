@@ -11,12 +11,12 @@ from detectron2.data import MetadataCatalog
 from detectron2.data import detection_utils as utils
 from detectron2.data import transforms as T
 
-from .target_generator import PanopticDeepLabTargetGenerator
+from .target_generator import TargetGenerator
 
-__all__ = ["PanopticDeeplabDatasetMapper"]
+__all__ = ["PostDatasetMapper"]
 
 
-class PanopticDeeplabDatasetMapper:
+class PostDatasetMapper:
     """
     The callable currently does the following:
 
@@ -67,7 +67,7 @@ class PanopticDeeplabDatasetMapper:
         # Assume always applies to the training set.
         dataset_names = cfg.DATASETS.TRAIN
         meta = MetadataCatalog.get(dataset_names[0])
-        panoptic_target_generator = PanopticDeepLabTargetGenerator(
+        panoptic_target_generator = TargetGenerator(
             ignore_label=meta.ignore_label,
             thing_ids=list(meta.thing_dataset_id_to_contiguous_id.values()),
             sigma=cfg.INPUT.GAUSSIAN_SIGMA,

@@ -23,7 +23,7 @@ from detectron2.utils.registry import Registry
 
 from .post_processing import get_panoptic_segmentation
 
-__all__ = ["PanopticDeepLab", "INS_EMBED_BRANCHES_REGISTRY", "build_ins_embed_branch"]
+__all__ = ["Post", "INS_EMBED_BRANCHES_REGISTRY", "build_ins_embed_branch"]
 
 
 INS_EMBED_BRANCHES_REGISTRY = Registry("INS_EMBED_BRANCHES")
@@ -34,7 +34,7 @@ predictions from feature maps.
 
 
 @META_ARCH_REGISTRY.register()
-class PanopticDeepLab(nn.Module):
+class Post(nn.Module):
     """
     Main class for panoptic segmentation architectures.
     """
@@ -597,7 +597,7 @@ def build_prev_offset_head(cfg, input_shape):
     return INS_EMBED_BRANCHES_REGISTRY.get(name)(cfg, input_shape)
 
 @INS_EMBED_BRANCHES_REGISTRY.register()
-class PanopticDeepLabPrevOffsetHead(DeepLabV3PlusHead):
+class PrevOffsetHead(DeepLabV3PlusHead):
     """
     Instance offset of the previous frame to the current center
     """

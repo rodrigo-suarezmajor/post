@@ -1,11 +1,14 @@
-_BASE_: ../../../Panoptic-DeepLab/configs/Cityscapes-PanopticSegmentation/Base-PanopticDeepLab-OS16.yaml
 MODEL:
+  META_ARCHITECTURE: "Post"
   WEIGHTS: "detectron2://DeepLab/R-52.pkl"
   PIXEL_MEAN: [123.675, 116.280, 103.530]
   PIXEL_STD: [58.395, 57.120, 57.375]
   BACKBONE:
     NAME: "build_resnet_deeplab_backbone"
+    FREEZE_AT: 0
   RESNETS:
+    OUT_FEATURES: ["res2", "res3", "res5"]
+    RES5_DILATION: 2
     DEPTH: 50
     NORM: "SyncBN"
     RES5_MULTI_GRID: [1, 2, 4]
@@ -13,16 +16,37 @@ MODEL:
     STEM_OUT_CHANNELS: 128
     STRIDE_IN_1X1: False
   SEM_SEG_HEAD:
+    NAME: "PanopticDeepLabSemSegHead"
+    IN_FEATURES: ["res2", "res3", "res5"]
+    PROJECT_FEATURES: ["res2", "res3"]
+    PROJECT_CHANNELS: [32, 64]
+    ASPP_CHANNELS: 256
+    ASPP_DILATIONS: [6, 12, 18]
+    ASPP_DROPOUT: 0.1
+    HEAD_CHANNELS: 256
+    CONVS_DIM: 256
+    COMMON_STRIDE: 4
     NUM_CLASSES: 133
+    LOSS_TYPE: "hard_pixel_mining"
+    NORM: "SyncBN"
     LOSS_TOP_K: 1.0
     USE_DEPTHWISE_SEPARABLE_CONV: True
-  PANOPTIC_DEEPLAB:
-    STUFF_AREA: 4096
-    NMS_KERNEL: 41
-    SIZE_DIVISIBILITY: 640
-    USE_DEPTHWISE_SEPARABLE_CONV: True
+  INS_EMBED_HEAD:
+    NAME: "PanopticDeepLabInsEmbedHead"
+    IN_FEATURES: ["res2", "res3", "res5"]
+    PROJECT_FEATURES: ["res2", "res3"]
+    PROJECT_CHANNELS: [32, 64]
+    ASPP_CHANNELS: 256
+    ASPP_DILATIONS: [6, 12, 18]
+    ASPP_DROPOUT: 0.1
+    HEAD_CHANNELS: 32
+    CONVS_DIM: 128
+    COMMON_STRIDE: 4
+    NORM: "SyncBN"
+    CENTER_LOSS_WEIGHT: 200.0
+    OFFSET_LOSS_WEIGHT: 0.01
   PREV_OFFSET_HEAD:
-    NAME: "PanopticDeepLabPrevOffsetHead"
+    NAME: "PrevOffsetHead"
     IN_FEATURES: ["res2", "res3", "res5"]
     PROJECT_FEATURES: ["res2", "res3"]
     PROJECT_CHANNELS: [32, 64]
@@ -34,17 +58,36 @@ MODEL:
     COMMON_STRIDE: 4
     NORM: "SyncBN"
     PREV_OFFSET_LOSS_WEIGHT: 0.01
+  PANOPTIC_DEEPLAB:
+    STUFF_AREA: 4096
+    CENTER_THRESHOLD: 0.1
+    NMS_KERNEL: 41
+    TOP_K_INSTANCE: 200
+    SIZE_DIVISIBILITY: 640
+    USE_DEPTHWISE_SEPARABLE_CONV: True
 DATASETS:
   TRAIN: ("kitti_mots_train",)
   TEST: ("kitti_mots_val",)
 SOLVER:
+  OPTIMIZER: "ADAM"
   BASE_LR: 0.0005
+  WEIGHT_DECAY: 0.0
+  WEIGHT_DECAY_NORM: 0.0
+  WEIGHT_DECAY_BIAS: 0.0
   MAX_ITER: 200000
-  IMS_PER_BATCH: 64
+  LR_SCHEDULER_NAME: "WarmupPolyLR"
+  IMS_PER_BATCH: 32
 INPUT:
+  MIN_SIZE_TRAIN: (512, 640, 704, 832, 896, 1024, 1152, 1216, 1344, 1408, 1536, 1664, 1728, 1856, 1920, 2048)
+  MIN_SIZE_TRAIN_SAMPLING: "choice"
+  MIN_SIZE_TEST: 1024
+  MAX_SIZE_TRAIN: 4096
+  MAX_SIZE_TEST: 2048
   FORMAT: "RGB"
   GAUSSIAN_SIGMA: 8
   CROP:
     ENABLED: False
     TYPE: "absolute"
     SIZE: (640, 640)
+DATALOADER:
+  NUM_WORKERS: 10

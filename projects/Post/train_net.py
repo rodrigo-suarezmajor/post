@@ -24,10 +24,7 @@ from detectron2.evaluation import (
     inference_on_dataset
 )
 from detectron2.projects.deeplab import build_lr_scheduler
-from detectron2.projects.panoptic_deeplab import (
-    PanopticDeeplabDatasetMapper,
-    add_panoptic_deeplab_config,
-)
+from post import PostDatasetMapper, add_post_config
 from detectron2.solver import get_default_optimizer_params
 from detectron2.solver.build import maybe_add_gradient_clipping
 from datasets import kitti_mots, kitti_mots_evaluation
@@ -103,7 +100,7 @@ class Trainer(DefaultTrainer):
         if cfg.DATASETS.TRAIN[0] == "kitti_mots_train":
             mapper = DatasetMapper(cfg, augmentations=build_sem_seg_train_aug(cfg))
         else:
-            mapper = PanopticDeeplabDatasetMapper(cfg, augmentations=build_sem_seg_train_aug(cfg))
+            mapper = PostDatasetMapper(cfg, augmentations=build_sem_seg_train_aug(cfg))
         return build_detection_train_loader(cfg, mapper=mapper)
 
     @classmethod
@@ -144,7 +141,7 @@ def setup(args):
     Create configs and perform basic setups.
     """
     cfg = get_cfg()
-    add_panoptic_deeplab_config(cfg)
+    add_post_config(cfg)
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
     cfg.freeze()

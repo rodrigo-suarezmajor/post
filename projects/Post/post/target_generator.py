@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 
-class PanopticDeepLabTargetGenerator(object):
+class TargetGenerator(object):
     """
     Generates training targets for Panoptic-DeepLab.
     """

@@ -5,9 +5,9 @@ from detectron2.config import CfgNode as CN
 from detectron2.projects.deeplab import add_deeplab_config
 
 
-def add_panoptic_deeplab_config(cfg):
+def add_post_config(cfg):
     """
-    Add config for Panoptic-DeepLab.
+    Add config for Post.
     """
     # Reuse DeepLab config.
     add_deeplab_config(cfg)
@@ -41,7 +41,7 @@ def add_panoptic_deeplab_config(cfg):
     cfg.MODEL.INS_EMBED_HEAD.OFFSET_LOSS_WEIGHT = 0.01
     # Previous Offset Head
     cfg.MODEL.PREV_OFFSET_HEAD = CN()
-    cfg.MODEL.PREV_OFFSET_HEAD.NAME = "PanopticDeepLabPrevOffsetHead"
+    cfg.MODEL.PREV_OFFSET_HEAD.NAME = "PrevOffsetHead"
     cfg.MODEL.PREV_OFFSET_HEAD.IN_FEATURES = ["res2", "res3", "res5"]
     cfg.MODEL.PREV_OFFSET_HEAD.PROJECT_FEATURES = ["res2", "res3"]
     cfg.MODEL.PREV_OFFSET_HEAD.PROJECT_CHANNELS = [32, 64]
