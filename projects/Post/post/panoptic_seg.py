@@ -97,9 +97,9 @@ class Post(nn.Module):
         )
         images = ImageList.from_tensors(images, size_divisibility)
         # Features: the output of the backbone for frame t
-        features = self.backbone(images[1:].tensor)
+        features = self.backbone(images.tensor)
         # Previous features: output of the backbone for frame t-1
-        prev_features = self.backbone(images[:-1].tensor)
+        prev_features = self.backbone(images.tensor)
 
         losses = {}
         if "sem_seg" in batched_inputs[0]:

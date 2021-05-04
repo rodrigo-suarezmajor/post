@@ -36,7 +36,8 @@ def add_post_config(cfg):
     cfg.MODEL.INS_EMBED_HEAD.HEAD_CHANNELS = 32
     cfg.MODEL.INS_EMBED_HEAD.CONVS_DIM = 128
     cfg.MODEL.INS_EMBED_HEAD.COMMON_STRIDE = 4
-    cfg.MODEL.INS_EMBED_HEAD.NORM = "SyncBN"
+    # Need to change from "SyncBN" to "GN" for 1 GPU training
+    cfg.MODEL.INS_EMBED_HEAD.NORM = "GN"
     cfg.MODEL.INS_EMBED_HEAD.CENTER_LOSS_WEIGHT = 200.0
     cfg.MODEL.INS_EMBED_HEAD.OFFSET_LOSS_WEIGHT = 0.01
     # Previous Offset Head
@@ -52,7 +53,8 @@ def add_post_config(cfg):
     cfg.MODEL.PREV_OFFSET_HEAD.HEAD_CHANNELS = 32
     cfg.MODEL.PREV_OFFSET_HEAD.CONVS_DIM = 128
     cfg.MODEL.PREV_OFFSET_HEAD.COMMON_STRIDE = 4
-    cfg.MODEL.PREV_OFFSET_HEAD.NORM = "SyncBN"
+    # Need to change from "SyncBN" to "GN" for 1 GPU training
+    cfg.MODEL.PREV_OFFSET_HEAD.NORM = "GN"
     cfg.MODEL.PREV_OFFSET_HEAD.PREV_OFFSET_LOSS_WEIGHT = 0.01
     # Panoptic-DeepLab post-processing setting.
     cfg.MODEL.PANOPTIC_DEEPLAB = CN()
