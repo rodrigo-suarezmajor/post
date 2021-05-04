@@ -27,7 +27,7 @@ from detectron2.projects.deeplab import build_lr_scheduler
 from post import PostDatasetMapper, add_post_config
 from detectron2.solver import get_default_optimizer_params
 from detectron2.solver.build import maybe_add_gradient_clipping
-from datasets import kitti_mots, kitti_mots_evaluation
+import kitti_mots, kitti_mots_evaluation
 
 
 

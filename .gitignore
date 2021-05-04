@@ -53,9 +53,7 @@ _darcs
 /snippet
 demo/input/
 demo/output/
-/projects/Panoptic-DeepLab/datasets
 /projects/Panoptic-DeepLab/models
 /projects/Panoptic-DeepLab/output
-/projects/Post/datsets/kitti_mots/*
 /projects/Post/models
 /projects/Post/output
