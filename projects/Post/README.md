@@ -1,5 +1,8 @@
 # POST: Panoptic Segmentation and Tracking
 
+## Architecture
+![Architecture 001](https://user-images.githubusercontent.com/59184079/117012491-4a618b80-acef-11eb-8f93-64f6eb4c12c0.png)
+
 ## Installation
 Install Detectron2 following [the instructions](https://detectron2.readthedocs.io/tutorials/install.html).
 
