@@ -85,8 +85,9 @@ INPUT:
   MAX_SIZE_TEST: 2048
   FORMAT: "RGB"
   GAUSSIAN_SIGMA: 8
+  MASK_FORMAT: "bitmask"
   CROP:
-    ENABLED: False
+    ENABLED: True
     TYPE: "absolute"
     SIZE: (640, 640)
 DATALOADER:

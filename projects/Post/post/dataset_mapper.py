@@ -31,6 +31,8 @@ class PostDatasetMapper:
         *,
         augmentations: List[Union[T.Augmentation, T.Transform]],
         image_format: str,
+        use_instance_mask: bool = False,
+        instance_mask_format: str = "bitmask",
         panoptic_target_generator: Callable,
     ):
         """
@@ -39,12 +41,17 @@ class PostDatasetMapper:
         Args:
             augmentations: a list of augmentations or deterministic transforms to apply
             image_format: an image format supported by :func:`detection_utils.read_image`.
+            use_instance_mask: whether to process instance segmentation annotations, if available
+            instance_mask_format: one of "polygon" or "bitmask". Process instance segmentation
+                masks into this format.            
             panoptic_target_generator: a callable that takes "panoptic_seg" and
                 "segments_info" to generate training targets for the model.
         """
         # fmt: off
         self.augmentations          = T.AugmentationList(augmentations)
         self.image_format           = image_format
+        self.use_instance_mask      = use_instance_mask
+        self.instance_mask_format   = instance_mask_format
         # fmt: on
         logger = logging.getLogger(__name__)
         logger.info("Augmentations used in training: " + str(augmentations))
@@ -97,20 +104,40 @@ class PostDatasetMapper:
         image = utils.read_image(dataset_dict["file_name"], format=self.image_format)
         utils.check_image_size(dataset_dict, image)
         # Panoptic label is encoded in RGB image.
-        pan_seg_gt = utils.read_image(dataset_dict.pop("pan_seg_file_name"), "RGB")
+        if "pan_seg_file_name" in dataset_dict:
+            pan_seg_gt = utils.read_image(dataset_dict.pop("pan_seg_file_name"), "RGB")
+        else:
+            pan_seg_gt = None
 
         # Reuses semantic transform for panoptic labels.
         aug_input = T.AugInput(image, sem_seg=pan_seg_gt)
-        _ = self.augmentations(aug_input)
+        transforms = self.augmentations(aug_input)
         image, pan_seg_gt = aug_input.image, aug_input.sem_seg
 
+        image_shape = image.shape[:2]  # h, w
         # Pytorch's dataloader is efficient on torch.Tensor due to shared-memory,
         # but not efficient on large generic data structures due to the use of pickle & mp.Queue.
         # Therefore it's important to use torch.Tensor.
         dataset_dict["image"] = torch.as_tensor(np.ascontiguousarray(image.transpose(2, 0, 1)))
 
+        if "annotations" in dataset_dict:
+
+            # USER: Implement additional transformations if you have other types of data
+            annos = [
+                utils.transform_instance_annotations(
+                    obj, transforms, image_shape, keypoint_hflip_indices=None
+                )
+                for obj in dataset_dict.pop("annotations")
+                if obj.get("iscrowd", 0) == 0
+            ]
+            instances = utils.annotations_to_instances(
+                annos, image_shape, mask_format=self.instance_mask_format
+            )
+            dataset_dict["instances"] = utils.filter_empty_instances(instances)
+
         # Generates training targets for Panoptic-DeepLab.
-        targets = self.panoptic_target_generator(rgb2id(pan_seg_gt), dataset_dict["segments_info"])
-        dataset_dict.update(targets)
+        if pan_seg_gt is not None:
+            targets = self.panoptic_target_generator(rgb2id(pan_seg_gt), dataset_dict["segments_info"])
+            dataset_dict.update(targets)
 
         return dataset_dict

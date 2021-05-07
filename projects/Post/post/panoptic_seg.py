@@ -145,8 +145,11 @@ class Post(nn.Module):
         losses.update(center_losses)
         losses.update(offset_losses)
 
-        if 'prev_offset' in batched_inputs[0]:
-            pass
+        if 'offset' in batched_inputs[0]:
+            prev_offset_targets = [x["offset"].to(self.device) for x in batched_inputs]
+            prev_offset_targets = ImageList.from_tensors(offset_targets, size_divisibility).tensor
+            prev_offset_weights = [x["offset_weights"].to(self.device) for x in batched_inputs]
+            prev_offset_weights = ImageList.from_tensors(offset_weights, size_divisibility).tensor
         else:
             prev_offset_targets = None
             prev_offset_weights = None        
