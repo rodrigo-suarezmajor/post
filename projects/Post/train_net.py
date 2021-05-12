@@ -97,10 +97,7 @@ class Trainer(DefaultTrainer):
 
     @classmethod
     def build_train_loader(cls, cfg):
-        if cfg.DATASETS.TRAIN[0] == "kitti_mots_rain":
-            mapper = DatasetMapper(cfg, augmentations=build_sem_seg_train_aug(cfg))
-        else:
-            mapper = PostDatasetMapper(cfg, augmentations=build_sem_seg_train_aug(cfg))
+        mapper = PostDatasetMapper(cfg, augmentations=build_sem_seg_train_aug(cfg))
         return build_detection_train_loader(cfg, mapper=mapper)
 
     @classmethod

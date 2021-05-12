@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 
-class TargetGenerator(object):
+class PanopticTargetGenerator(object):
     """
     Generates training targets for Panoptic-DeepLab.
     """
@@ -141,10 +141,6 @@ class TargetGenerator(object):
                 # generate offset (2, h, w) -> (y-dir, x-dir)
                 offset[0][mask_index] = center_y - y_coord[mask_index]
                 offset[1][mask_index] = center_x - x_coord[mask_index]
-
-                # generate prevoffset
-                prev_offset[0][mask_index] = center_y - y_coord[mask_index - 1]
-                prev_offset[1][mask_index] = center_x - x_coord[mask_index - 1]
 
         center_weights = center_weights[None]
         offset_weights = offset_weights[None]

@@ -75,6 +75,7 @@ class Post(nn.Module):
                    * "sem_seg": semantic segmentation ground truth
                    * "center": center points heatmap ground truth
                    * "offset": pixel offsets to center points ground truth
+                   * "prev_offset": pixel offsets from previous masks to center points ground truth
                    * Other information that's included in the original dicts, such as:
                      "height", "width" (int): the output resolution of the model (may be different
                      from input resolution), used in inference.
@@ -117,8 +118,11 @@ class Post(nn.Module):
         else:
             targets = None
             weights = None
-        sem_seg_results, sem_seg_losses = self.sem_seg_head(features, targets, weights)
-        losses.update(sem_seg_losses)
+
+        # Check if there are targets or running inference
+        if targets is not None or not self.training:
+            sem_seg_results, sem_seg_losses = self.sem_seg_head(features, targets, weights)
+            losses.update(sem_seg_losses)
 
         if "center" in batched_inputs[0] and "offset" in batched_inputs[0]:
             center_targets = [x["center"].to(self.device) for x in batched_inputs]
@@ -145,24 +149,25 @@ class Post(nn.Module):
         losses.update(center_losses)
         losses.update(offset_losses)
 
-        if 'offset' in batched_inputs[0]:
-            prev_offset_targets = [x["offset"].to(self.device) for x in batched_inputs]
-            prev_offset_targets = ImageList.from_tensors(offset_targets, size_divisibility).tensor
-            prev_offset_weights = [x["offset_weights"].to(self.device) for x in batched_inputs]
-            prev_offset_weights = ImageList.from_tensors(offset_weights, size_divisibility).tensor
+        if 'prev_offset' in batched_inputs[0]:
+            prev_offset_targets = [x["prev_offset"].to(self.device) for x in batched_inputs]
+            prev_offset_targets = ImageList.from_tensors(prev_offset_targets, size_divisibility).tensor
+            prev_offset_weights = [x["prev_offset_weights"].to(self.device) for x in batched_inputs]
+            prev_offset_weights = ImageList.from_tensors(prev_offset_weights, size_divisibility).tensor
         else:
             prev_offset_targets = None
             prev_offset_weights = None        
 
-        # Concatenate the features for tracking
-        features = torch.cat((features, prev_features), 0)
-        # Calls the 'forward' function of 'prev_offset_head' 
-        # in training results are None and in inference losses are empty {}
-        prev_offset_results, prev_offset_losses = self.prev_offset_head(
-            features, prev_offset_targets, prev_offset_weights
-        )
-
-        losses.update(prev_offset_losses)
+        # Check if there are targets or running inference
+        if prev_offset_targets is not None or not self.training:
+            # Concatenate the features for tracking
+            features = torch.cat((features, prev_features), 0)
+            # Calls the 'forward' function of 'prev_offset_head'  
+            # in training results are None and in inference losses are empty {}
+            prev_offset_results, prev_offset_losses = self.prev_offset_head(
+                features, prev_offset_targets, prev_offset_weights
+            )
+            losses.update(prev_offset_losses)
 
         if self.training:
             return losses

@@ -11,7 +11,8 @@ from detectron2.data import MetadataCatalog
 from detectron2.data import detection_utils as utils
 from detectron2.data import transforms as T
 
-from .target_generator import TargetGenerator
+from .panoptic_target_generator import PanopticTargetGenerator
+from .instance_target_generator import InstanceTargetGenerator
 
 __all__ = ["PostDatasetMapper"]
 
@@ -34,6 +35,7 @@ class PostDatasetMapper:
         use_instance_mask: bool = False,
         instance_mask_format: str = "bitmask",
         panoptic_target_generator: Callable,
+        instance_target_generator: Callable,
     ):
         """
         NOTE: this interface is experimental.
@@ -46,6 +48,8 @@ class PostDatasetMapper:
                 masks into this format.            
             panoptic_target_generator: a callable that takes "panoptic_seg" and
                 "segments_info" to generate training targets for the model.
+            instance_target_generator: a callable that takes "instances"
+                to generate training targets for the model.
         """
         # fmt: off
         self.augmentations          = T.AugmentationList(augmentations)
@@ -57,6 +61,7 @@ class PostDatasetMapper:
         logger.info("Augmentations used in training: " + str(augmentations))
 
         self.panoptic_target_generator = panoptic_target_generator
+        self.instance_target_generator = instance_target_generator
 
     @classmethod
     def from_config(cls, cfg):
@@ -74,7 +79,7 @@ class PostDatasetMapper:
         # Assume always applies to the training set.
         dataset_names = cfg.DATASETS.TRAIN
         meta = MetadataCatalog.get(dataset_names[0])
-        panoptic_target_generator = TargetGenerator(
+        panoptic_target_generator = PanopticTargetGenerator(
             ignore_label=meta.ignore_label,
             thing_ids=list(meta.thing_dataset_id_to_contiguous_id.values()),
             sigma=cfg.INPUT.GAUSSIAN_SIGMA,
@@ -84,10 +89,16 @@ class PostDatasetMapper:
             ignore_crowd_in_semantic=cfg.INPUT.IGNORE_CROWD_IN_SEMANTIC,
         )
 
+        instance_target_generator = InstanceTargetGenerator(
+            ignore_label=meta.ignore_label,
+            sigma=cfg.INPUT.GAUSSIAN_SIGMA,
+        )
+
         ret = {
             "augmentations": augs,
             "image_format": cfg.INPUT.FORMAT,
             "panoptic_target_generator": panoptic_target_generator,
+            "instance_target_generator": instance_target_generator,
         }
         return ret
 
@@ -135,9 +146,12 @@ class PostDatasetMapper:
             )
             dataset_dict["instances"] = utils.filter_empty_instances(instances)
 
-        # Generates training targets for Panoptic-DeepLab.
         if pan_seg_gt is not None:
+            # Generates training targets for Panoptic-DeepLab.
             targets = self.panoptic_target_generator(rgb2id(pan_seg_gt), dataset_dict["segments_info"])
+            dataset_dict.update(targets)
+        else:
+            targets = self.instance_target_generator(dataset_dict["instances"])
             dataset_dict.update(targets)
 
         return dataset_dict
