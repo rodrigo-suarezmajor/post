@@ -31,7 +31,7 @@ def get_kitti_mots(path):
             instance = {
                 'bbox': bbox,
                 'bbox_mode': BoxMode.XYXY_ABS,
-                'object_id:': object_id,
+                'object_id': object_id,
                 'category_id': class_id,
                 'segmentation': mask
                 }    
@@ -53,13 +53,21 @@ def get_kitti_mots(path):
                 annotations = instances[frame]
             else:
                 annotations = []
+            object_ids = [anno['object_id'] for anno in annotations]
 
+            # Get the previous annotations
+            prev_frame = frame - 1
+            if prev_frame >= 0 and prev_frame in instances:
+                prev_annotations = [anno for anno in instances[prev_frame] if anno['object_id'] in object_ids]
+            else:
+                prev_annotations = []
 
             image = {
                 'file_name': os.path.join(path, sequence, image_name), 
                 'height': height, 
                 'width': width, 
                 'annotations': annotations, 
+                'prev_annotations': prev_annotations,
                 'sequence': sequence
                 }
             images.append(image)

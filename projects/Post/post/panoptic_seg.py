@@ -161,7 +161,7 @@ class Post(nn.Module):
         # Check if there are targets or running inference
         if prev_offset_targets is not None or not self.training:
             # Concatenate the features for tracking
-            features = torch.cat((features, prev_features), 0)
+            # features = torch.cat((features, prev_features), 0)
             # Calls the 'forward' function of 'prev_offset_head'  
             # in training results are None and in inference losses are empty {}
             prev_offset_results, prev_offset_losses = self.prev_offset_head(
