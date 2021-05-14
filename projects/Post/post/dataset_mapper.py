@@ -145,13 +145,26 @@ class PostDatasetMapper:
                 annos, image_shape, mask_format=self.instance_mask_format
             )
             dataset_dict["instances"] = utils.filter_empty_instances(instances)
+        
+        if "prev_annotations" in dataset_dict:
+            prev_annos = [
+                utils.transform_instance_annotations(
+                    obj, transforms, image_shape, keypoint_hflip_indices=None
+                )
+                for obj in dataset_dict.pop("prev_annotations")
+                if obj.get("iscrowd", 0) == 0
+            ]
+            prev_instances = utils.annotations_to_instances(
+                prev_annos, image_shape, mask_format=self.instance_mask_format
+            )
+            dataset_dict["prev_instances"] = utils.filter_empty_instances(prev_instances)
 
         if pan_seg_gt is not None:
             # Generates training targets for Panoptic-DeepLab.
             targets = self.panoptic_target_generator(rgb2id(pan_seg_gt), dataset_dict["segments_info"])
             dataset_dict.update(targets)
         else:
-            targets = self.instance_target_generator(dataset_dict["instances"])
+            targets = self.instance_target_generator(dataset_dict["instances"], dataset_dict["prev_instances"])
             dataset_dict.update(targets)
 
         return dataset_dict

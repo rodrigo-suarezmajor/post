@@ -27,13 +27,15 @@ class InstanceTargetGenerator(object):
         x0, y0 = 3 * sigma + 1, 3 * sigma + 1
         self.g = np.exp(-((x - x0) ** 2 + (y - y0) ** 2) / (2 * sigma ** 2))
 
-    def __call__(self, instances):
+    def __call__(self, instances, prev_instances):
         """Generates the training target.
         reference: https://github.com/mcordts/cityscapesScripts/blob/master/cityscapesscripts/preparation/createPanopticImgs.py  # noqa
         reference: https://github.com/facebookresearch/detectron2/blob/master/datasets/prepare_panoptic_fpn.py#L18  # noqa
 
         Args:
-            instances: 
+            instances: instances in one frame
+            prev_instances: instances of the previous frame, 
+                that are also present in the current frame
 
         Returns:
             A dictionary with fields:
@@ -56,10 +58,12 @@ class InstanceTargetGenerator(object):
                     ignore, 1 is has instance. Multiply this mask to loss.
         """
         image_size = instances.image_size
-        # TODO: what to do with the don't care region
+        # TODO: what to do with the don't care region?
         instances = instances[instances.gt_classes != self.ignore_label]
+        prev_instances = prev_instances[prev_instances.gt_classes != self.ignore_label]
         (height, width) = image_size
         masks = instances.gt_masks.tensor.numpy()
+        prev_masks = instances.gt_masks.tensor.numpy()
         center = np.zeros(image_size, dtype=np.float32)
         center_pts = []
         offset = np.zeros((2, height, width), dtype=np.float32)
