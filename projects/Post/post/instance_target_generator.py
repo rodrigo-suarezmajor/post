@@ -70,14 +70,31 @@ class InstanceTargetGenerator(object):
 
         # joint_masks of all annotations, to generate center and offset weights
         joint_mask = None
+        prev_joint_mask = None
     
         for anno in annotations:
 
             mask = anno["segmentation"]
+
+            # generate joint mask
             if joint_mask is None:
                 joint_mask = mask
-                continue
-            joint_mask = np.logical_or(joint_mask, mask)
+            else:
+                joint_mask = np.logical_or(joint_mask, mask)
+
+            # get previous mask if there is one (same object id)   
+            prev_mask = [
+                prev_anno["segmentation"] 
+                for prev_anno in prev_annotations 
+                if prev_anno["object_id"] == anno["object_id"]
+                ]
+            # generate previous joint mask
+            if np.any(prev_mask):
+                prev_mask = prev_mask[0]
+                if prev_joint_mask is None:
+                    prev_joint_mask = prev_mask
+                else:
+                    prev_joint_mask = np.logical_or(prev_joint_mask, mask)
 
             # mask index x and y of where the mask is 'true'
             mask_index = np.where(mask)
@@ -108,18 +125,23 @@ class InstanceTargetGenerator(object):
             offset[0][mask_index] = center_y - y_coord[mask_index]
             offset[1][mask_index] = center_x - x_coord[mask_index]
 
-            # TODO: generate previous offset (2, h, w) -> (y-dir, x-dir)
-            prev_offset[0][mask_index] = center_y - y_coord[mask_index]
-            prev_offset[1][mask_index] = center_x - x_coord[mask_index]
+            # generate previous offset (2, h, w) -> (y-dir, x-dir) i
+            if np.any(prev_mask):
+                mask_index = np.where(prev_mask)
+                prev_offset[0][mask_index] = center_y - y_coord[mask_index]
+                prev_offset[1][mask_index] = center_x - x_coord[mask_index]
 
-        # TODO: implement for previous offset
-        prev_offset_weights = np.zeros(image_size, dtype=np.uint8)
         # set 1 where there is some mask and 0 else where
         center_weights = np.where(joint_mask, 1, 0)
         offset_weights = np.where(joint_mask, 1, 0)
+        if np.any(prev_joint_mask):
+            prev_offset_weights = np.where(prev_joint_mask, 1, 0)
+        else:
+            prev_offset_weights = np.zeros(image_size, dtype=np.uint8)
         # Using None as is equivalent to using numpy.newaxis
         center_weights = center_weights[None]
         offset_weights = offset_weights[None]
+        prev_offset_weights = prev_offset_weights[None]
         return dict(
             center=torch.as_tensor(center.astype(np.float32)),
             center_points=center_pts,
