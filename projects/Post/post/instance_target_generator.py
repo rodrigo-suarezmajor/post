@@ -1,6 +1,7 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
 import numpy as np
 import torch
+from pycocotools import mask as pycoco_mask
 
 class InstanceTargetGenerator(object):
     """
@@ -27,14 +28,14 @@ class InstanceTargetGenerator(object):
         x0, y0 = 3 * sigma + 1, 3 * sigma + 1
         self.g = np.exp(-((x - x0) ** 2 + (y - y0) ** 2) / (2 * sigma ** 2))
 
-    def __call__(self, instances, prev_instances):
+    def __call__(self, annotations, prev_annotations):
         """Generates the training target.
         reference: https://github.com/mcordts/cityscapesScripts/blob/master/cityscapesscripts/preparation/createPanopticImgs.py  # noqa
         reference: https://github.com/facebookresearch/detectron2/blob/master/datasets/prepare_panoptic_fpn.py#L18  # noqa
 
         Args:
-            instances: instances in one frame
-            prev_instances: instances of the previous frame, 
+            annotations: annotations of instances in one frame
+            prev_annotations: annotations of the previous frame, 
                 that are also present in the current frame
 
         Returns:
@@ -57,13 +58,8 @@ class InstanceTargetGenerator(object):
                     shape=(H, W), used as weights for offset regression 0 is
                     ignore, 1 is has instance. Multiply this mask to loss.
         """
-        image_size = instances.image_size
-        # TODO: what to do with the don't care region?
-        instances = instances[instances.gt_classes != self.ignore_label]
-        prev_instances = prev_instances[prev_instances.gt_classes != self.ignore_label]
+        image_size = annotations[0]["segmentation"].shape
         (height, width) = image_size
-        masks = instances.gt_masks.tensor.numpy()
-        prev_masks = instances.gt_masks.tensor.numpy()
         center = np.zeros(image_size, dtype=np.float32)
         center_pts = []
         offset = np.zeros((2, height, width), dtype=np.float32)
@@ -72,11 +68,12 @@ class InstanceTargetGenerator(object):
             np.arange(height, dtype=np.float32), np.arange(width, dtype=np.float32), indexing="ij"
         )
 
-        # joint_masks of all instances, to generate center and offset weights
+        # joint_masks of all annotations, to generate center and offset weights
         joint_mask = None
     
-        for mask in masks:
+        for anno in annotations:
 
+            mask = anno["segmentation"]
             if joint_mask is None:
                 joint_mask = mask
                 continue

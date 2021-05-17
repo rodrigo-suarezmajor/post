@@ -23,9 +23,12 @@ def get_kitti_mots(path):
             frame = int(fields[0])
             object_id = int(fields[1]) % 1000 
             class_id = int(fields[2])
+            # Skip don't care region (id=10) for now
+            if class_id == 10:
+                continue
             mask = {
                 'size': [int(fields[3]), int(fields[4])], 
-                'counts': fields[5].encode(encoding='UTF-8')
+                'counts': fields[5]
                 }
             bbox = pycoco_mask.toBbox(mask)
             instance = {
