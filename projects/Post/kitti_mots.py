@@ -46,11 +46,13 @@ def get_kitti_mots(path):
 
         # Generate output dict    
         for image_name in image_list:
-            
+            file_name = os.path.join(path, sequence, image_name)
             # Check if there are annotations/instances in this frame
             frame = image_name.lstrip('0').rstrip('.png')
+            # Skip the first image as there's no previous image
             if frame == '':
-                frame = 0
+                prev_file_name = file_name
+                continue
             frame = int(frame)
             if frame in instances:
                 annotations = instances[frame]
@@ -61,12 +63,16 @@ def get_kitti_mots(path):
             # Get the previous annotations
             prev_frame = frame - 1
             if prev_frame >= 0 and prev_frame in instances:
-                prev_annotations = [anno for anno in instances[prev_frame] if anno['object_id'] in object_ids]
+                prev_annotations = [
+                    anno for anno in instances[prev_frame]
+                    if anno['object_id'] in object_ids
+                    ]
             else:
                 prev_annotations = []
 
             image = {
-                'file_name': os.path.join(path, sequence, image_name), 
+                'file_name': file_name, 
+                'prev_file_name': prev_file_name, 
                 'height': height, 
                 'width': width, 
                 'annotations': annotations, 
@@ -74,6 +80,7 @@ def get_kitti_mots(path):
                 'sequence': sequence
                 }
             images.append(image)
+            prev_file_name = file_name
     return images
 
 def register():

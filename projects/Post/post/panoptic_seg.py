@@ -72,6 +72,7 @@ class Post(nn.Module):
                 Each item in the list contains the inputs for one image.
                 For now, each item in the list is a dict that contains:
                    * "image": Tensor, image in (C, H, W) format.
+                   * "prev_image": Tensor, previous image in (C, H, W) format.
                    * "sem_seg": semantic segmentation ground truth
                    * "center": center points heatmap ground truth
                    * "offset": pixel offsets to center points ground truth
@@ -90,6 +91,8 @@ class Post(nn.Module):
         """
         images = [x["image"].to(self.device) for x in batched_inputs]
         images = [(x - self.pixel_mean) / self.pixel_std for x in images]
+        prev_images = [x["prev_image"].to(self.device) for x in batched_inputs]
+        prev_images = [(x - self.pixel_mean) / self.pixel_std for x in prev_images]
         # To avoid error in ASPP layer when input has different size.
         size_divisibility = (
             self.size_divisibility
@@ -97,10 +100,11 @@ class Post(nn.Module):
             else self.backbone.size_divisibility
         )
         images = ImageList.from_tensors(images, size_divisibility)
+        prev_images = ImageList.from_tensors(prev_images, size_divisibility)
         # Features: the output of the backbone for frame t
         features = self.backbone(images.tensor)
         # Previous features: output of the backbone for frame t-1
-        prev_features = self.backbone(images.tensor)
+        prev_features = self.backbone(prev_images.tensor)
 
         losses = {}
         if "sem_seg" in batched_inputs[0]:
@@ -165,7 +169,7 @@ class Post(nn.Module):
             # Calls the 'forward' function of 'prev_offset_head'  
             # in training results are None and in inference losses are empty {}
             prev_offset_results, prev_offset_losses = self.prev_offset_head(
-                features, prev_offset_targets, prev_offset_weights
+                features, prev_features, prev_offset_targets, prev_offset_weights
             )
             losses.update(prev_offset_losses)
 
@@ -714,6 +718,7 @@ class PrevOffsetHead(DeepLabV3PlusHead):
     def forward(
         self,
         features,
+        prev_features,
         prev_offset_targets=None,
         prev_offset_weights=None,
     ):
@@ -722,8 +727,9 @@ class PrevOffsetHead(DeepLabV3PlusHead):
             In training, returns (None, dict of losses)
             In inference, returns (CxHxW logits, {})
         """
-
-        prev_offset = self.layers(features)
+        # Concatenate the output layer of the backbone for the previous and current image
+        prev_features['res5'] = torch.cat((features['res5'], prev_features['res5']))
+        prev_offset = self.layers(prev_features)
         if self.training:
             return (
                 None,
@@ -740,6 +746,7 @@ class PrevOffsetHead(DeepLabV3PlusHead):
 
     def layers(self, features):
         assert self.decoder_only
+        # TODO: 
         y = super().layers(features)
         # prev_offset
         prev_offset = self.prev_offset_head(y)

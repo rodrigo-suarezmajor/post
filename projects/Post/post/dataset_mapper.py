@@ -113,6 +113,7 @@ class PostDatasetMapper:
         dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
         # Load image.
         image = utils.read_image(dataset_dict["file_name"], format=self.image_format)
+        prev_image = utils.read_image(dataset_dict["prev_file_name"], format=self.image_format)
         utils.check_image_size(dataset_dict, image)
         # Panoptic label is encoded in RGB image.
         if "pan_seg_file_name" in dataset_dict:
@@ -121,15 +122,17 @@ class PostDatasetMapper:
             pan_seg_gt = None
 
         # Reuses semantic transform for panoptic labels.
-        aug_input = T.AugInput(image, sem_seg=pan_seg_gt)
+        # todo...
+        aug_input = T.AugInput(image, prev_image=prev_image, sem_seg=pan_seg_gt)
         transforms = self.augmentations(aug_input)
-        image, pan_seg_gt = aug_input.image, aug_input.sem_seg
+        image, prev_image, pan_seg_gt = aug_input.image, aug_input.prev_image, aug_input.sem_seg
 
         image_shape = image.shape[:2]  # h, w
         # Pytorch's dataloader is efficient on torch.Tensor due to shared-memory,
         # but not efficient on large generic data structures due to the use of pickle & mp.Queue.
         # Therefore it's important to use torch.Tensor.
         dataset_dict["image"] = torch.as_tensor(np.ascontiguousarray(image.transpose(2, 0, 1)))
+        dataset_dict["prev_image"] = torch.as_tensor(np.ascontiguousarray(prev_image.transpose(2, 0, 1)))
 
         if "annotations" in dataset_dict:
             dataset_dict["annotations"] = [
