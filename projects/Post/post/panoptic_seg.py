@@ -164,12 +164,12 @@ class Post(nn.Module):
 
         # Check if there are targets or running inference
         if prev_offset_targets is not None or not self.training:
-            # Concatenate the features for tracking
-            # features = torch.cat((features, prev_features), 0)
+            # Concatenate the output layer of the backbone for the previous and current image
+            prev_features['res5'] = torch.cat([features['res5'], prev_features['res5']], dim=1)
             # Calls the 'forward' function of 'prev_offset_head'  
             # in training results are None and in inference losses are empty {}
             prev_offset_results, prev_offset_losses = self.prev_offset_head(
-                features, prev_features, prev_offset_targets, prev_offset_weights
+                prev_features, prev_offset_targets, prev_offset_weights
             )
             losses.update(prev_offset_losses)
 
@@ -606,7 +606,7 @@ def build_prev_offset_head(cfg, input_shape):
     Build a instance embedding branch from `cfg.MODEL.PREV_OFFSET_HEAD.NAME`.
     """
     name = cfg.MODEL.PREV_OFFSET_HEAD.NAME
-    return INS_EMBED_BRANCHES_REGISTRY.get(name)(cfg, input_shape)
+    return INS_EMBED_BRANCHES_REGISTRY.get(name)(cfg, input_shape, prev_offset=True)
 
 @INS_EMBED_BRANCHES_REGISTRY.register()
 class PrevOffsetHead(DeepLabV3PlusHead):
@@ -718,7 +718,6 @@ class PrevOffsetHead(DeepLabV3PlusHead):
     def forward(
         self,
         features,
-        prev_features,
         prev_offset_targets=None,
         prev_offset_weights=None,
     ):
@@ -727,9 +726,7 @@ class PrevOffsetHead(DeepLabV3PlusHead):
             In training, returns (None, dict of losses)
             In inference, returns (CxHxW logits, {})
         """
-        # Concatenate the output layer of the backbone for the previous and current image
-        prev_features['res5'] = torch.cat((features['res5'], prev_features['res5']))
-        prev_offset = self.layers(prev_features)
+        prev_offset = self.this_layers(features)
         if self.training:
             return (
                 None,
@@ -744,8 +741,26 @@ class PrevOffsetHead(DeepLabV3PlusHead):
             )
             return prev_offset, {}
 
+    def this_layers(self, features):
+        # Reverse feature maps into top-down order (from low to high resolution)
+        for f in self.in_features[::-1]:
+            x = features[f]
+            proj_x = self.decoder[f]["project_conv"](x)
+            if self.decoder[f]["fuse_conv"] is None:
+                # This is aspp module
+                y = proj_x
+            else:
+                # Upsample y
+                y = F.interpolate(y, size=proj_x.size()[2:], mode="bilinear", align_corners=False)
+                y = torch.cat([proj_x, y], dim=1)
+                y = self.decoder[f]["fuse_conv"](y)
+
+        prev_offset = self.prev_offset_head(y)
+        prev_offset = self.prev_offset_predictor(prev_offset)
+        return prev_offset
+
     def layers(self, features):
-        assert self.decoder_only
+
         # TODO: 
         y = super().layers(features)
         # prev_offset
