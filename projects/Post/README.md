@@ -11,7 +11,7 @@ Install Detectron2 following [the instructions](https://detectron2.readthedocs.i
 To train a model with run:
 ```bash
 cd /path/to/detectron2/projects/Post
-python train_net.py --config-file configs/KITTI-MOTS/panoptic_deeplab_R_52_os16_mg124_poly_200k_bs64_crop_640_640_kitti_mots_dsconv.yaml
+python train_net.py --config-file configs/KITTI-MOTS/post_R_52_os16_mg124_poly_200k_bs1_kitti_mots_crop_384_dsconv.yaml
 ```
 
 ## Inference
