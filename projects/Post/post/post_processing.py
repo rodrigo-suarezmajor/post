@@ -5,9 +5,12 @@ from collections import Counter
 import torch
 import torch.nn.functional as F
 
-class _PrevThingSeg():
-    def __init__(self, prev_thing_seg):
-        self.prev_thing_seg = prev_thing_seg
+class _PrevSeg():
+    def __init__(self, sem_seg=None, thing_seg=None, panoptic=None):
+        self.sem_seg = sem_seg
+        self.thing_seg = thing_seg
+        self.panoptic = panoptic
+
 
 class PostProcessor():
     """
@@ -42,8 +45,9 @@ class PostProcessor():
         self.threshold = threshold
         self.nms_kernel = nms_kernel
         self.top_k = top_k
+        self.prev_seg = _PrevSeg()
 
-    def get_panoptic_segmentation(self, sem_seg, center, offset, prev_offsets, foreground_mask=None):
+    def get_panoptic_segmentation(self, sem_seg, center, offset, prev_offset, foreground_mask=None):
         """
         Post-processing for panoptic segmentation.
         Args:
@@ -82,12 +86,15 @@ class PostProcessor():
                 thing_seg[sem_seg == thing_class] = 1
 
         instance, center_points = self.get_instance_segmentation(sem_seg, center, offset, thing_seg)
-        if prev_offsets is not None:
-            #todo
-            prev_instance, _ = self.get_instance_segmentation(sem_seg, center, prev_offsets, thing_seg)
-        
+        if self.prev_seg.sem_seg is not None:
+            prev_instance, _ = self.get_instance_segmentation(sem_seg, center, prev_offset, self.prev_seg.thing_seg)
+            prev_panoptic = self.merge_semantic_and_instance(self.prev_seg.sem_seg, prev_instance, self.prev_seg.thing_seg)
+
         panoptic = self.merge_semantic_and_instance(sem_seg, instance, thing_seg)
 
+        self.prev_seg.sem_seg = sem_seg
+        self.prev_seg.instance = instance
+        self.prev_seg.thing_seg = thing_seg
         return panoptic, center_points
 
 
