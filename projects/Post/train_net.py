@@ -27,7 +27,8 @@ from detectron2.projects.deeplab import build_lr_scheduler
 from post import PostDatasetMapper, add_post_config
 from detectron2.solver import get_default_optimizer_params
 from detectron2.solver.build import maybe_add_gradient_clipping
-import kitti_mots, kitti_mots_evaluation
+from kitti_mots import register_kitti_mots
+from kitti_mots_evaluation import KittiMotsEvaluator
 
 
 
@@ -147,23 +148,22 @@ def setup(args):
 
 
 def main(args):
-    kitti_mots.register()
+    register_kitti_mots()
     cfg = setup(args)
 
     if args.inference_only:
         model = Trainer.build_model(cfg)
+        dataset_name = cfg.DATASETS.TEST[0]
         DetectionCheckpointer(model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
             cfg.MODEL.WEIGHTS, resume=args.resume
         )
         test_loader = build_detection_test_loader(
             cfg, 
-            cfg.DATASETS.TEST[0], 
+            dataset_name, 
             mapper=PostDatasetMapper(cfg, test=True)
             )
-        # obtain thing classes from coco dataset
-        evaluator = kitti_mots_evaluation.KittiMotsEvaluator("coco_2017_train_panoptic")
+        evaluator = KittiMotsEvaluator(dataset_name)
         inference_on_dataset(model, test_loader, evaluator)
-        return print('inference done')
 
     if args.eval_only:
         model = Trainer.build_model(cfg)

@@ -21,7 +21,7 @@ from detectron2.projects.deeplab.loss import DeepLabCE
 from detectron2.structures import BitMasks, ImageList, Instances
 from detectron2.utils.registry import Registry
 
-from .post_processing import get_panoptic_segmentation
+from .post_processing import PostProcessor
 
 __all__ = ["Post", "INS_EMBED_BRANCHES_REGISTRY", "build_ins_embed_branch"]
 
@@ -36,7 +36,7 @@ predictions from feature maps.
 @META_ARCH_REGISTRY.register()
 class Post(nn.Module):
     """
-    Main class for panoptic segmentation architectures.
+    Main class for panoptic segmentation and tracking architectures.
     """
 
     def __init__(self, cfg):
@@ -53,6 +53,15 @@ class Post(nn.Module):
         self.nms_kernel = cfg.MODEL.PANOPTIC_DEEPLAB.NMS_KERNEL
         self.top_k = cfg.MODEL.PANOPTIC_DEEPLAB.TOP_K_INSTANCE
         self.predict_instances = cfg.MODEL.PANOPTIC_DEEPLAB.PREDICT_INSTANCES
+        self.post_processing = PostProcessor(
+            thing_ids=self.meta.thing_dataset_id_to_contiguous_id.values(),
+            label_divisor=self.meta.label_divisor,
+            stuff_area=self.stuff_area,
+            void_label=-1,
+            threshold=self.threshold,
+            nms_kernel=self.nms_kernel,
+            top_k=self.top_k,
+        )
         self.use_depthwise_separable_conv = cfg.MODEL.PANOPTIC_DEEPLAB.USE_DEPTHWISE_SEPARABLE_CONV
         assert (
             cfg.MODEL.SEM_SEG_HEAD.USE_DEPTHWISE_SEPARABLE_CONV
@@ -166,48 +175,47 @@ class Post(nn.Module):
             prev_offset_weights = None        
 
         # Check if there are targets or running inference
-        if prev_offset_targets is not None or not self.training and "prev_image" in batched_inputs[0]:
-            # Concatenate the output layer of the backbone for the previous and current image
-            prev_features['res5'] = torch.cat([features['res5'], prev_features['res5']], dim=1)
-            # Calls the 'forward' function of 'prev_offset_head'  
-            # in training results are None and in inference losses are empty {}
-            prev_offset_results, prev_offset_losses = self.prev_offset_head(
-                prev_features, prev_offset_targets, prev_offset_weights
-            )
-            losses.update(prev_offset_losses)
+        if prev_offset_targets is not None or not self.training:
+            if "prev_image" in batched_inputs[0]:  
+                # Concatenate the output layer of the backbone for the previous and current image
+                prev_features['res5'] = torch.cat([features['res5'], prev_features['res5']], dim=1)
+                # Calls the 'forward' function of 'prev_offset_head'  
+                # in training results are None and in inference losses are empty {}
+                prev_offset_results, prev_offset_losses = self.prev_offset_head(
+                    prev_features, prev_offset_targets, prev_offset_weights
+                )
+                losses.update(prev_offset_losses)
+            else:
+                #to avoid error during inference when there's no previous image (eg. first image of a sequence)
+                prev_offset_results = offset_results
 
         if self.training:
             return losses
 
         if self.benchmark_network_speed:
             return []
-
+        
+        # Post processing
         processed_results = []
-        for sem_seg_result, center_result, offset_result, input_per_image, image_size in zip(
-            sem_seg_results, center_results, offset_results, batched_inputs, images.image_sizes
-        ):
-            height = input_per_image.get("height")
-            width = input_per_image.get("width")
-            r = sem_seg_postprocess(sem_seg_result, image_size, height, width)
-            c = sem_seg_postprocess(center_result, image_size, height, width)
-            o = sem_seg_postprocess(offset_result, image_size, height, width)
+        results = zip(sem_seg_results, center_results, offset_results, prev_offset_results, batched_inputs, images.image_sizes)
+        for sem_seg, center, offset, prev_offset, input, image_size in results:
+            # input height and width != image_size
+            (height, width) = (input.get("height"), input.get("width"))
+            sem_seg = sem_seg_postprocess(sem_seg, image_size, height, width)
+            center = sem_seg_postprocess(center, image_size, height, width)
+            offset = sem_seg_postprocess(offset, image_size, height, width)
+            prev_offset = sem_seg_postprocess(prev_offset, image_size, height, width)
             # Post-processing to get panoptic segmentation.
-            panoptic_image, _ = get_panoptic_segmentation(
-                r.argmax(dim=0, keepdim=True),
-                c,
-                o,
-                thing_ids=self.meta.thing_dataset_id_to_contiguous_id.values(),
-                label_divisor=self.meta.label_divisor,
-                stuff_area=self.stuff_area,
-                void_label=-1,
-                threshold=self.threshold,
-                nms_kernel=self.nms_kernel,
-                top_k=self.top_k,
+            panoptic_image, _ = self.post_processing.get_panoptic_segmentation(
+                sem_seg.argmax(dim=0, keepdim=True),
+                center,
+                offset,
+                prev_offset
             )
             # For semantic segmentation evaluation.
-            processed_results.append({"sem_seg": r})
+            processed_results.append({"sem_seg": sem_seg})
             panoptic_image = panoptic_image.squeeze(0)
-            semantic_prob = F.softmax(r, dim=0)
+            semantic_prob = F.softmax(sem_seg, dim=0)
             # For panoptic segmentation evaluation.
             processed_results[-1]["panoptic_seg"] = (panoptic_image, None)
             # For instance segmentation evaluation.
@@ -239,7 +247,7 @@ class Post(nn.Module):
                             torch.mean(mask_indices[:, 0]),
                             torch.mean(mask_indices[:, 1]),
                         )
-                        center_scores = c[0, int(center_y.item()), int(center_x.item())]
+                        center_scores = center[0, int(center_y.item()), int(center_x.item())]
                         # Confidence score is semantic prob * center prob.
                         instance.scores = torch.tensor(
                             [sem_scores * center_scores], device=panoptic_image.device

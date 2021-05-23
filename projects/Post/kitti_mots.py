@@ -86,7 +86,7 @@ def get_kitti_mots(path):
             prev_file_name = file_name
     return images
 
-def register():
+def register_kitti_mots():
     for d in ["train", "val"]:
         DatasetCatalog.register(
             "kitti_mots_" + d,
