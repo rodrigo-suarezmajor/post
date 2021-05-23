@@ -76,7 +76,3 @@ def register():
         thing_dataset_id_to_contiguous_id={'1': 0, '2': 1, '10': 2}
     )
 
-
-k = get_kitti_mots("./datasets/kitti_mots/train/")
-print(k[0])
-print(k[1])

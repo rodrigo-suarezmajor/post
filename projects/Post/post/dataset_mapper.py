@@ -36,6 +36,7 @@ class PostDatasetMapper:
         instance_mask_format: str = "bitmask",
         panoptic_target_generator: Callable,
         instance_target_generator: Callable,
+        test: bool = False
     ):
         """
         NOTE: this interface is experimental.
@@ -50,12 +51,14 @@ class PostDatasetMapper:
                 "segments_info" to generate training targets for the model.
             instance_target_generator: a callable that takes "instances"
                 to generate training targets for the model.
+            test: whether to load val/test dataset, no targets will be applied, batchsize == 1
         """
         # fmt: off
         self.augmentations          = T.AugmentationList(augmentations)
         self.image_format           = image_format
         self.use_instance_mask      = use_instance_mask
         self.instance_mask_format   = instance_mask_format
+        self.test = test
         # fmt: on
         logger = logging.getLogger(__name__)
         logger.info("Augmentations used in training: " + str(augmentations))
@@ -74,7 +77,7 @@ class PostDatasetMapper:
         ]
         if cfg.INPUT.CROP.ENABLED:
             augs.append(T.RandomCrop(cfg.INPUT.CROP.TYPE, cfg.INPUT.CROP.SIZE))
-        augs.append(T.RandomFlip())
+            augs.append(T.RandomFlip())
 
         # Assume always applies to the training set.
         dataset_names = cfg.DATASETS.TRAIN
@@ -115,6 +118,13 @@ class PostDatasetMapper:
         image = utils.read_image(dataset_dict["file_name"], format=self.image_format)
         prev_image = utils.read_image(dataset_dict["prev_file_name"], format=self.image_format)
         utils.check_image_size(dataset_dict, image)
+
+        # Don't generate targets for test
+        if self.test:
+            dataset_dict["image"] = torch.as_tensor(np.ascontiguousarray(image.transpose(2, 0, 1)))
+            dataset_dict["prev_image"] = torch.as_tensor(np.ascontiguousarray(prev_image.transpose(2, 0, 1)))
+            return dataset_dict
+            
         # Panoptic label is encoded in RGB image.
         if "pan_seg_file_name" in dataset_dict:
             pan_seg_gt = utils.read_image(dataset_dict.pop("pan_seg_file_name"), "RGB")

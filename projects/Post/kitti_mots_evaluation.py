@@ -34,8 +34,6 @@ class KittiMotsEvaluator():
         self._output_dir = './output/data'
         self._cpu_device = torch.device("cpu")
         self._thing_classes = MetadataCatalog.get(dataset_name).thing_classes
-        self._car = ['car']
-        self._pedestrian = ['person']
 
     def reset(self):
         for f in os.listdir(self._output_dir):
@@ -100,9 +98,9 @@ class KittiMotsEvaluator():
 
     def _to_kitti_mots(self, pred_class):
         thing_class = self._thing_classes[pred_class]
-        if thing_class in self._car:
+        if thing_class == "car":
             return 1
-        elif thing_class in self._pedestrian:
+        elif thing_class in "person":
             return 2
         else:
             return None

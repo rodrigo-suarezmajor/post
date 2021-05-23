@@ -26,6 +26,9 @@ def get_kitti_mots(path):
             # Skip don't care region (id=10) for now
             if class_id == 10:
                 continue
+            # map person to id in coco dataset
+            if class_id == 1:
+                class_id = 0
             mask = {
                 'size': [int(fields[3]), int(fields[4])], 
                 'counts': fields[5]
@@ -89,7 +92,6 @@ def register():
             "kitti_mots_" + d,
             lambda d=d: get_kitti_mots("./datasets/kitti_mots/" + d)
             )
-    MetadataCatalog.get("kitti_mots_train").set(
-        ignore_label=10,
-        thing_dataset_id_to_contiguous_id={'1': 0, '2': 1, '10': 2}
-    )
+        coco_meta = MetadataCatalog.get("coco_2017_" + d + "_panoptic").as_dict()
+        coco_meta.pop("name", None)
+        MetadataCatalog.get("kitti_mots_" + d).set(**coco_meta)

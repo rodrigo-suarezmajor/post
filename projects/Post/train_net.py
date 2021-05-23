@@ -155,8 +155,13 @@ def main(args):
         DetectionCheckpointer(model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
             cfg.MODEL.WEIGHTS, resume=args.resume
         )
-        test_loader = build_detection_test_loader(cfg, "kitti_mots_val")
-        evaluator = kitti_mots_evaluation.KittiMotsEvaluator(cfg.DATASETS.TRAIN[0])
+        test_loader = build_detection_test_loader(
+            cfg, 
+            cfg.DATASETS.TEST[0], 
+            mapper=PostDatasetMapper(cfg, test=True)
+            )
+        # obtain thing classes from coco dataset
+        evaluator = kitti_mots_evaluation.KittiMotsEvaluator("coco_2017_train_panoptic")
         inference_on_dataset(model, test_loader, evaluator)
         return print('inference done')
 

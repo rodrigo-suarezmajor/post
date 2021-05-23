@@ -89,22 +89,25 @@ class Post(nn.Module):
                 * "instances": available if ``predict_instances is True``. see documentation
                     :doc:`/tutorials/models` for the standard output format
         """
-        images = [x["image"].to(self.device) for x in batched_inputs]
-        images = [(x - self.pixel_mean) / self.pixel_std for x in images]
-        prev_images = [x["prev_image"].to(self.device) for x in batched_inputs]
-        prev_images = [(x - self.pixel_mean) / self.pixel_std for x in prev_images]
         # To avoid error in ASPP layer when input has different size.
         size_divisibility = (
             self.size_divisibility
             if self.size_divisibility > 0
             else self.backbone.size_divisibility
         )
+
+        images = [x["image"].to(self.device) for x in batched_inputs]
+        images = [(x - self.pixel_mean) / self.pixel_std for x in images]
         images = ImageList.from_tensors(images, size_divisibility)
-        prev_images = ImageList.from_tensors(prev_images, size_divisibility)
         # Features: the output of the backbone for frame t
         features = self.backbone(images.tensor)
-        # Previous features: output of the backbone for frame t-1
-        prev_features = self.backbone(prev_images.tensor)
+        
+        if "prev_image" in batched_inputs[0]:
+            prev_images = [x["prev_image"].to(self.device) for x in batched_inputs]
+            prev_images = [(x - self.pixel_mean) / self.pixel_std for x in prev_images]
+            prev_images = ImageList.from_tensors(prev_images, size_divisibility)
+            # Previous features: output of the backbone for frame t-1
+            prev_features = self.backbone(prev_images.tensor)
 
         losses = {}
         if "sem_seg" in batched_inputs[0]:
@@ -163,7 +166,7 @@ class Post(nn.Module):
             prev_offset_weights = None        
 
         # Check if there are targets or running inference
-        if prev_offset_targets is not None or not self.training:
+        if prev_offset_targets is not None or not self.training and "prev_image" in batched_inputs[0]:
             # Concatenate the output layer of the backbone for the previous and current image
             prev_features['res5'] = torch.cat([features['res5'], prev_features['res5']], dim=1)
             # Calls the 'forward' function of 'prev_offset_head'  

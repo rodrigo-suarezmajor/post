@@ -57,3 +57,5 @@ demo/output/
 /projects/Panoptic-DeepLab/output
 /projects/Post/models
 /projects/Post/output
+/projects/Post/input
+/projects/Post/demo_output
