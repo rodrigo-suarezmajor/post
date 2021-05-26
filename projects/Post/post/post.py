@@ -15,13 +15,12 @@ from detectron2.modeling import (
     build_backbone,
     build_sem_seg_head,
 )
-from detectron2.modeling.postprocessing import sem_seg_postprocess
 from detectron2.projects.deeplab import DeepLabV3PlusHead
 from detectron2.projects.deeplab.loss import DeepLabCE
-from detectron2.structures import BitMasks, ImageList, Instances
+from detectron2.structures import ImageList
 from detectron2.utils.registry import Registry
 
-from .post_processing import PostProcessor
+from .post_processing import PostProcessing
 
 __all__ = ["Post", "INS_EMBED_BRANCHES_REGISTRY", "build_ins_embed_branch"]
 
@@ -53,11 +52,12 @@ class Post(nn.Module):
         self.nms_kernel = cfg.MODEL.PANOPTIC_DEEPLAB.NMS_KERNEL
         self.top_k = cfg.MODEL.PANOPTIC_DEEPLAB.TOP_K_INSTANCE
         self.predict_instances = cfg.MODEL.PANOPTIC_DEEPLAB.PREDICT_INSTANCES
-        self.post_processing = PostProcessor(
+        self.post_processing = PostProcessing(
             thing_ids=self.meta.thing_dataset_id_to_contiguous_id.values(),
             label_divisor=self.meta.label_divisor,
             stuff_area=self.stuff_area,
             void_label=-1,
+            predict_instances=self.predict_instances,
             threshold=self.threshold,
             nms_kernel=self.nms_kernel,
             top_k=self.top_k,
@@ -198,66 +198,8 @@ class Post(nn.Module):
         # Post processing
         processed_results = []
         results = zip(sem_seg_results, center_results, offset_results, prev_offset_results, batched_inputs, images.image_sizes)
-        for sem_seg, center, offset, prev_offset, input, image_size in results:
-            # input height and width != image_size
-            (height, width) = (input.get("height"), input.get("width"))
-            sem_seg = sem_seg_postprocess(sem_seg, image_size, height, width)
-            center = sem_seg_postprocess(center, image_size, height, width)
-            offset = sem_seg_postprocess(offset, image_size, height, width)
-            prev_offset = sem_seg_postprocess(prev_offset, image_size, height, width)
-            # Post-processing to get panoptic segmentation.
-            panoptic_image, _ = self.post_processing.get_panoptic_segmentation(
-                sem_seg.argmax(dim=0, keepdim=True),
-                center,
-                offset,
-                prev_offset
-            )
-            # For semantic segmentation evaluation.
-            processed_results.append({"sem_seg": sem_seg})
-            panoptic_image = panoptic_image.squeeze(0)
-            semantic_prob = F.softmax(sem_seg, dim=0)
-            # For panoptic segmentation evaluation.
-            processed_results[-1]["panoptic_seg"] = (panoptic_image, None)
-            # For instance segmentation evaluation.
-            if self.predict_instances:
-                instances = []
-                panoptic_image_cpu = panoptic_image.cpu().numpy()
-                for panoptic_label in np.unique(panoptic_image_cpu):
-                    if panoptic_label == -1:
-                        continue
-                    pred_class = panoptic_label // self.meta.label_divisor
-                    isthing = pred_class in list(
-                        self.meta.thing_dataset_id_to_contiguous_id.values()
-                    )
-                    # Get instance segmentation results.
-                    if isthing:
-                        instance = Instances((height, width))
-                        # Evaluation code takes continuous id starting from 0
-                        instance.pred_classes = torch.tensor(
-                            [pred_class], device=panoptic_image.device
-                        )
-                        mask = panoptic_image == panoptic_label
-                        instance.pred_masks = mask.unsqueeze(0)
-                        # Average semantic probability
-                        sem_scores = semantic_prob[pred_class, ...]
-                        sem_scores = torch.mean(sem_scores[mask])
-                        # Center point probability
-                        mask_indices = torch.nonzero(mask).float()
-                        center_y, center_x = (
-                            torch.mean(mask_indices[:, 0]),
-                            torch.mean(mask_indices[:, 1]),
-                        )
-                        center_scores = center[0, int(center_y.item()), int(center_x.item())]
-                        # Confidence score is semantic prob * center prob.
-                        instance.scores = torch.tensor(
-                            [sem_scores * center_scores], device=panoptic_image.device
-                        )
-                        # Get bounding boxes
-                        instance.pred_boxes = BitMasks(instance.pred_masks).get_bounding_boxes()
-                        instances.append(instance)
-                if len(instances) > 0:
-                    processed_results[-1]["instances"] = Instances.cat(instances)
-
+        for result in results:
+            processed_result = self.post_processing(*result)
         return processed_results
 
 

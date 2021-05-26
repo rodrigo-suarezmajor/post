@@ -2,17 +2,40 @@
 # Reference: https://github.com/bowenc0221/panoptic-deeplab/blob/master/segmentation/model/post_processing/instance_post_processing.py  # noqa
 
 from collections import Counter
+from detectron2.modeling.postprocessing import sem_seg_postprocess
+from detectron2.structures import BitMasks, Instances
 import torch
+import numpy as np
 import torch.nn.functional as F
+import pycocotools.mask as mask_util
 
-class _PrevSeg():
+class _PrevImage:
+    """
+    Used to store data about the segmentation in the previous image
+    to generate panoptic image of the previous fram with current centers
+    """
+    __slots__ = ["sem_seg", "thing_seg", "panoptic"]
     def __init__(self, sem_seg=None, thing_seg=None, panoptic=None):
         self.sem_seg = sem_seg
         self.thing_seg = thing_seg
         self.panoptic = panoptic
 
+class Instance:
+    """
+    Used to store data about detected objects in Previous Frame
+    to enable iou tracking
+    """
 
-class PostProcessor():
+    __slots__ = ["class_id", "bbox", "mask_rle", 'object_id', 'ttl']
+
+    def __init__(self, class_id, mask_rle, object_id=None, ttl=8):
+        self.class_id = class_id
+        self.mask_rle = mask_rle
+        self.object_id = object_id
+        self.ttl = ttl
+
+
+class PostProcessing:
     """
     Post-processor for panoptic segmentation and tracking.
     """
@@ -22,6 +45,7 @@ class PostProcessor():
         label_divisor, 
         stuff_area, 
         void_label, 
+        predict_instances,
         threshold=0.1, 
         nms_kernel=7,
         top_k=200,
@@ -34,6 +58,7 @@ class PostProcessor():
                 semantic id * label_divisor + instance_id.
             stuff_area: An integer, remove stuff whose area is less tan stuff_area.
             void_label: An integer, indicates the region has no confident prediction.
+            predict_instances: A bool whether to predict instances
             threshold: A float, threshold applied to center heatmap score.
             nms_kernel: An integer, NMS max pooling kernel size.
             top_k: An integer, top k centers to keep.
@@ -45,9 +70,12 @@ class PostProcessor():
         self.threshold = threshold
         self.nms_kernel = nms_kernel
         self.top_k = top_k
-        self.prev_seg = _PrevSeg()
+        self.predict_instances = predict_instances
+        self.prev_image = _PrevImage()
+        self.prev_instances = []
+        self.num_objects = 0
 
-    def get_panoptic_segmentation(self, sem_seg, center, offset, prev_offset, foreground_mask=None):
+    def __call__(self, sem_seg, center, offset, prev_offset, input, output_size):
         """
         Post-processing for panoptic segmentation.
         Args:
@@ -57,14 +85,52 @@ class PostProcessor():
                 second dim is (offset_y, offset_x).
             prev_offset: A Tensor of shape [2, H, W] of raw previous offset output. The order of
                 second dim is (offset_y, offset_x).
-            foreground_mask: Optional, A Tensor of shape [1, H, W] of predicted
-                binary foreground mask. If not provided, it will be generated from
-                sem_seg
+            input: input image used to get the input height and width
+            output_size: size of the output
         Returns:
             panoptic: A Tensor of shape [1, H, W], int64.
             center_points: A Tensor of shape [1, K, 2] where K is the number of center points.
             The order of second dim is (y, x).
+            processed_result: A dict containing panoptic_seg, sem_seg and instances
         """
+        processed_result = {}
+        # input height and width usually !=  output_size
+        (height, width) = (input.get("height"), input.get("width"))
+        sem_seg = sem_seg_postprocess(sem_seg, output_size, height, width)
+        center = sem_seg_postprocess(center, output_size, height, width)
+        offset = sem_seg_postprocess(offset, output_size, height, width)
+        prev_offset = sem_seg_postprocess(prev_offset, output_size, height, width)
+
+        # For semantic segmentation evaluation.
+        processed_result['sem_seg'] = sem_seg
+        # Post-processing to get panoptic segmentation.
+        panoptic_image, _ = self.get_panoptic_segmentation(
+            sem_seg.argmax(dim=0, keepdim=True),
+            center,
+            offset,
+            prev_offset
+        )
+        # For panoptic segmentation evaluation.
+        processed_result['panoptic_seg'] = (panoptic_image, None)
+  
+        if not self.predict_instances:
+            return processed_result
+        
+        # For instance segmentation evaluation.
+        prev_instances = self.get_instances(
+            self.prev_image.panoptic.squeeze(0),
+            center,
+            self.prev_image.sem_seg,
+            height,
+            width
+            )
+        self.iou_tracking(prev_instances)   
+        instances = self.get_instances(panoptic_image, center, sem_seg, height, width)
+        if instances:
+            processed_result["instances"] = instances
+
+
+    def get_panoptic_segmentation(self, sem_seg, center, offset, prev_offset, foreground_mask=None):
         if sem_seg.dim() != 3 and sem_seg.size(0) != 1:
             raise ValueError("Semantic prediction with un-supported shape: {}.".format(sem_seg.size()))
         if center.dim() != 3:
@@ -86,25 +152,69 @@ class PostProcessor():
                 thing_seg[sem_seg == thing_class] = 1
 
         instance, center_points = self.get_instance_segmentation(sem_seg, center, offset, thing_seg)
-        if self.prev_seg.sem_seg is not None:
-            prev_instance, _ = self.get_instance_segmentation(sem_seg, center, prev_offset, self.prev_seg.thing_seg)
-            prev_panoptic = self.merge_semantic_and_instance(self.prev_seg.sem_seg, prev_instance, self.prev_seg.thing_seg)
+        
+        # Generate panoptic of previous image with current center points
+        if self.prev_image.sem_seg is not None:
+            prev_instance, _ = self.get_instance_segmentation(sem_seg, center, prev_offset, self.prev_image.thing_seg)
+            prev_panoptic = self.merge_semantic_and_instance(self.prev_image.sem_seg, prev_instance, self.prev_image.thing_seg)
+
 
         panoptic = self.merge_semantic_and_instance(sem_seg, instance, thing_seg)
 
-        self.prev_seg.sem_seg = sem_seg
-        self.prev_seg.instance = instance
-        self.prev_seg.thing_seg = thing_seg
-        return panoptic, center_points
+        # Update previous instance
+        self.prev_image.sem_seg = sem_seg
+        self.prev_image.thing_seg = thing_seg
+        self.prev_image.panoptic = panoptic
+        return panoptic.squeeze(0), center_points
 
+    def get_instances(self, panoptic_image, center, sem_seg, height, width):
+        instances = []
+        semantic_prob = F.softmax(sem_seg, dim=0)
+        panoptic_image = panoptic_image.cpu().numpy()
+        for panoptic_label in np.unique(panoptic_image):
+            if panoptic_label == -1:
+                continue
+            pred_class = panoptic_label // self.label_divisor
+            if pred_class not in self.thing_ids:
+                continue
 
+            instances_per_class = Instances((height, width))
+            # Evaluation code takes continuous id starting from 0
+            instances_per_class.pred_classes = torch.tensor(
+                [pred_class], device=panoptic_image.device
+            )
+            mask = panoptic_image == panoptic_label
+            instances_per_class.pred_masks = mask.unsqueeze(0)
+            # Average semantic probability
+            sem_scores = semantic_prob[pred_class, ...]
+            sem_scores = torch.mean(sem_scores[mask])
+            # Center point probability
+            mask_indices = torch.nonzero(mask).float()
+            center_y, center_x = (
+                torch.mean(mask_indices[:, 0]),
+                torch.mean(mask_indices[:, 1]),
+            )
+            # Used to match current and previous instances 
+            instances_per_class.center = [int(center_y.item()), int(center_x.item())]
+            center_scores = center[0, int(center_y.item()), int(center_x.item())]
+            # Confidence score is semantic prob * center prob.
+            instances_per_class.scores = torch.tensor(
+                [sem_scores * center_scores], device=panoptic_image.device
+            )
+            # Get bounding boxes
+            instances_per_class.pred_boxes = BitMasks(instances_per_class.pred_masks).get_bounding_boxes()
+            instances.append(instances_per_class)
+        # Concatenate the lists of instances per class to one list
+        if len(instances) > 0:
+            instances = Instances.cat(instances)
+        return instances
 
     def get_instance_segmentation(self, sem_seg, center, offset, thing_seg):
         """
         Post-processing for instance segmentation, gets class agnostic instance id.
         Args:
             sem_seg: A Tensor of shape [1, H, W], predicted semantic label.
-            center_heatmap: A Tensor of shape [1, H, W] of raw center heatmap output.
+            center: A Tensor of shape [1, H, W] of raw center heatmap output.
             offsets: A Tensor of shape [2, H, W] of raw offset output. The order of
                 second dim is (offset_y, offset_x).
             thing_seg: A Tensor of shape [1, H, W], predicted foreground mask,
@@ -233,3 +343,57 @@ class PostProcessor():
                 pan_seg[stuff_mask] = class_id * self.label_divisor
 
         return pan_seg
+
+    def iou_tracking(self, raw_instances):
+        """
+        iou tracking between the instance masks of the previous frame,
+        with current and previous center
+        """
+        instances = []
+        for i in range(len(raw_instances)):
+            # get mask_rle
+            mask = raw_instances.pred_masks[i]
+            mask_rle = mask_util.encode(np.asarray(mask[:, :, None], dtype=np.uint8, order="F"))[0]
+            # save instance to instances
+            instances.append(Instance(raw_instances.pred_classes[i], mask_rle))
+        # Compute iou:
+        is_crowd = np.zeros((len(instances),), dtype=np.bool)
+        assert instances[0].mask_rle is not None
+        rles_old = [x.mask_rle for x in self.prev_instances]
+        rles_new = [x.mask_rle for x in instances]
+        ious = mask_util.iou(rles_old, rles_new, is_crowd)
+        threshold = 0.5
+
+        if len(ious) == 0:
+            ious = np.zeros((len(self.prev_instances), len(instances)), dtype="float32")
+
+        # Only allow matching instances of the same class:
+        for old_idx, old in enumerate(self.prev_instances):
+            for new_idx, new in enumerate(instances):
+                if old.class_id != new.class_id:
+                    ious[old_idx, new_idx] = 0
+
+        matched_new_per_old = np.asarray(ious).argmax(axis=1)
+        max_iou_per_old = np.asarray(ious).max(axis=1)
+
+        # Try to find match for each old instance:
+        extra_instances = []
+        for idx, inst in enumerate(self.prev_instances):
+            if max_iou_per_old[idx] > threshold:
+                newidx = matched_new_per_old[idx]
+                if instances[newidx].object_id is None:
+                    instances[newidx].object_id = inst.object_id
+                    continue
+            # If an old instance does not match any new instances,
+            # keep it for the next frame in case it is just missed by the detector
+            inst.ttl -= 1
+            if inst.ttl > 0:
+                extra_instances.append(inst)
+
+        # Assign new id to newly-detected instances:
+        for inst in instances:
+            if inst.object_id is None:
+                # Assign increasing id number
+                self.num_objects += 1
+                inst.object_id = self.num_objects
+        return extra_instances
