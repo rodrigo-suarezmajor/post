@@ -62,6 +62,9 @@ class Trainer(DefaultTrainer):
         """
         if cfg.MODEL.PANOPTIC_DEEPLAB.BENCHMARK_NETWORK_SPEED:
             return None
+        # Don't evaluate for kitti mots
+        if dataset_name == 'kitti_mots_val':
+            return None
         if output_folder is None:
             output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
         evaluator_list = []
