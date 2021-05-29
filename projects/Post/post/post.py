@@ -200,6 +200,7 @@ class Post(nn.Module):
         results = zip(sem_seg_results, center_results, offset_results, prev_offset_results, batched_inputs, images.image_sizes)
         for result in results:
             processed_result = self.post_processing(*result)
+            processed_results.append(processed_result)
         return processed_results
 
 
