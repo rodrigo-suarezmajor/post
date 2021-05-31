@@ -31,13 +31,13 @@ class IouTracking:
         instances = self.to_instance_dict(raw_instances)
         object_ids = np.zeros([len(raw_instances), 1], dtype=int)
         # When there's no previous instances (first image or no detection):
-        if raw_prev_instances is None:
+        if raw_prev_instances is None or len(raw_prev_instances) == 0:
             for i, instance_id in enumerate(instances):
                 # Assign increasing id number
                 self._num_objects += 1
                 instances[instance_id].object_id = self._num_objects
                 object_ids[i] = self._num_objects
-            self._old_instances = instances.values() # TODO: keep old instances
+            self._old_instances = instances.values() # TODO: ke  ep old instances
             raw_instances.object_ids = torch.tensor(object_ids, device=torch.device("cuda"))
             return raw_instances
 

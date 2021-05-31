@@ -1,6 +1,6 @@
 MODEL:
   META_ARCHITECTURE: "Post"
-  WEIGHTS: "./models/model_final.pth"
+  WEIGHTS: "./models/model_0009999.pth"
   PIXEL_MEAN: [123.675, 116.280, 103.530]
   PIXEL_STD: [58.395, 57.120, 57.375]
   BACKBONE:
