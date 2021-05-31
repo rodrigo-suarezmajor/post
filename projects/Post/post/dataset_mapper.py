@@ -116,13 +116,15 @@ class PostDatasetMapper:
         dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
         # Load image.
         image = utils.read_image(dataset_dict["file_name"], format=self.image_format)
-        prev_image = utils.read_image(dataset_dict["prev_file_name"], format=self.image_format)
+        if dataset_dict["prev_file_name"]:
+            prev_image = utils.read_image(dataset_dict["prev_file_name"], format=self.image_format)
         utils.check_image_size(dataset_dict, image)
 
         # Don't generate targets for test
         if self.test:
             dataset_dict["image"] = torch.as_tensor(np.ascontiguousarray(image.transpose(2, 0, 1)))
-            dataset_dict["prev_image"] = torch.as_tensor(np.ascontiguousarray(prev_image.transpose(2, 0, 1)))
+            if dataset_dict["prev_file_name"]:
+                dataset_dict["prev_image"] = torch.as_tensor(np.ascontiguousarray(prev_image.transpose(2, 0, 1)))
             return dataset_dict
             
         # Panoptic label is encoded in RGB image.

@@ -16,7 +16,9 @@ class _PrevImage:
     """
     __slots__ = ["sem_seg_result", "sem_seg", "thing_seg", "panoptic"]
     def __init__(self, sem_seg_result=None, sem_seg=None, thing_seg=None, panoptic=None):
+        # [C, H, W]
         self.sem_seg_result = sem_seg_result
+        # [1, H, W]
         self.sem_seg = sem_seg
         self.thing_seg = thing_seg
         self.panoptic = panoptic
@@ -40,7 +42,7 @@ class PostProcessing:
             thing_ids: A set of ids from contiguous category ids belonging
                 to thing categories.
             label_divisor: An integer, used to convert panoptic id =
-                semantic id * label_divisor + instance_id.
+                semantic id * label_divisor + s.
             stuff_area: An integer, remove stuff whose area is less tan stuff_area.
             void_label: An integer, indicates the region has no confident prediction.
             predict_instances: A bool whether to predict instances
@@ -61,7 +63,7 @@ class PostProcessing:
         self.height = None
         self.width = None
 
-    def __call__(self, sema_seg_result, center, offset, prev_offset, input, output_size):
+    def __call__(self, sem_seg_result, center, offset, prev_offset, input, output_size):
         """
         Post-processing for panoptic segmentation.
         Args:
@@ -82,15 +84,19 @@ class PostProcessing:
         processed_result = {}
         # input height and width usually !=  output_size
         (self.height, self.width) = (input.get("height"), input.get("width"))
-        sema_seg_result = sem_seg_postprocess(sema_seg_result, output_size, self.height, self.width)
+        sem_seg_result = sem_seg_postprocess(sem_seg_result, output_size, self.height, self.width)
         center = sem_seg_postprocess(center, output_size, self.height, self.width)
         offset = sem_seg_postprocess(offset, output_size, self.height, self.width)
-        prev_offset = sem_seg_postprocess(prev_offset, output_size, self.height, self.width)
+        if prev_offset is not None:
+            prev_offset = sem_seg_postprocess(prev_offset, output_size, self.height, self.width)
+        else:
+            # reset ids and old instances for a new sequence
+            self.tracking.reset()
         # For semantic segmentation evaluation.
-        processed_result['sem_seg'] = sema_seg_result
+        processed_result['sem_seg'] = sem_seg_result
         # Post-processing to get panoptic segmentation.
         panoptic, prev_panoptic = self.get_panoptic_segmentation(
-            sema_seg_result.argmax(dim=0, keepdim=True),
+            sem_seg_result.argmax(dim=0, keepdim=True),
             center,
             offset,
             prev_offset
@@ -102,7 +108,7 @@ class PostProcessing:
             return processed_result
         
         # For instance segmentation evaluation
-        instances = self.get_instances(panoptic , center, sema_seg_result)
+        instances = self.get_instances(panoptic, center, sem_seg_result)
         if prev_panoptic is not None:
             prev_instances = self.get_instances(prev_panoptic, center, self.prev_image.sem_seg_result)
         else:
@@ -112,8 +118,8 @@ class PostProcessing:
             instances = self.tracking(instances, prev_instances)
             processed_result["instances"] = instances
 
-        # Update previous image
-        self.prev_image.sem_seg_result = sema_seg_result
+        # Update semantic seg result
+        self.prev_image.sem_seg_result = sem_seg_result
         return processed_result
 
 
@@ -134,7 +140,7 @@ class PostProcessing:
         center_points = self.get_center_points(center)
         ins_seg = self.get_instance_segmentation(sem_seg, center_points, offset, thing_seg)
         panoptic = self.merge_semantic_and_instance(sem_seg, ins_seg, thing_seg)
-        if self.prev_image.thing_seg is not None:
+        if self.prev_image.thing_seg is not None and prev_offset is not None:
             prev_ins_seg = self.get_instance_segmentation(self.prev_image.sem_seg, center_points, prev_offset, self.prev_image.thing_seg)
             prev_panoptic = self.merge_semantic_and_instance(self.prev_image.sem_seg, prev_ins_seg, self.prev_image.thing_seg)
             prev_panoptic = prev_panoptic.squeeze(0)
@@ -262,27 +268,27 @@ class PostProcessing:
         instances = []
         semantic_prob = F.softmax(sem_seg, dim=0)
         for panoptic_label in torch.unique(panoptic):
-            # if label == void label (-1)
+            # if label == void label (-1) 
             if panoptic_label == -1:
                 continue
-            pred_class = panoptic_label // self.label_divisor
-            if pred_class not in self.thing_ids:
+            pred_classes = panoptic_label // self.label_divisor
+            if pred_classes not in self.thing_ids:
                 continue
-            instance_id = panoptic_label - pred_class
+            instance_ids = panoptic_label % self.label_divisor
             # get all instances of this class == panoptic label
             instances_of_class = Instances((self.height, self.width))
             # Evaluation code takes continuous id starting from 0
             instances_of_class.pred_classes = torch.tensor(
-                [pred_class], device=panoptic.device
+                [pred_classes], device=panoptic.device
             )
             # Used to match current and previous instances
-            instances_of_class.instance_id = torch.tensor(
-                [instance_id], device=panoptic.device
+            instances_of_class.instance_ids = torch.tensor(
+                [instance_ids], device=panoptic.device
             )
             mask = panoptic == panoptic_label
             instances_of_class.pred_masks = mask.unsqueeze(0)
             # Average semantic probability
-            sem_scores = semantic_prob[pred_class, ...]
+            sem_scores = semantic_prob[pred_classes, ...]
             sem_scores = torch.mean(sem_scores[mask])
             # Center point probability
             mask_indices = torch.nonzero(mask).float()

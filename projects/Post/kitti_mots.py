@@ -52,10 +52,9 @@ def get_kitti_mots(path):
             file_name = os.path.join(path, sequence, image_name)
             # Check if there are annotations/instances in this frame
             frame = image_name.lstrip('0').rstrip('.png')
-            # Skip the first image as there's no previous image
             if frame == '':
-                prev_file_name = file_name
-                continue
+                frame = 0
+                prev_file_name = None
             frame = int(frame)
             if frame in instances:
                 annotations = instances[frame]

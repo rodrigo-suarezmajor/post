@@ -119,7 +119,7 @@ class Post(nn.Module):
             prev_features = self.backbone(prev_images.tensor)
 
         losses = {}
-        if "sem_seg" in batched_inputs[0]:
+        if "sem_seg" in batched_inputs[0] and self.training:
             targets = [x["sem_seg"].to(self.device) for x in batched_inputs]
             targets = ImageList.from_tensors(
                 targets, size_divisibility, self.sem_seg_head.ignore_value
@@ -140,7 +140,7 @@ class Post(nn.Module):
             sem_seg_results, sem_seg_losses = self.sem_seg_head(features, targets, weights)
             losses.update(sem_seg_losses)
 
-        if "center" in batched_inputs[0] and "offset" in batched_inputs[0]:
+        if "center" in batched_inputs[0] and "offset" in batched_inputs[0] and self.training:
             center_targets = [x["center"].to(self.device) for x in batched_inputs]
             center_targets = ImageList.from_tensors(
                 center_targets, size_divisibility
@@ -165,7 +165,7 @@ class Post(nn.Module):
         losses.update(center_losses)
         losses.update(offset_losses)
 
-        if 'prev_offset' in batched_inputs[0]:
+        if 'prev_offset' in batched_inputs[0] and self.training:
             prev_offset_targets = [x["prev_offset"].to(self.device) for x in batched_inputs]
             prev_offset_targets = ImageList.from_tensors(prev_offset_targets, size_divisibility).tensor
             prev_offset_weights = [x["prev_offset_weights"].to(self.device) for x in batched_inputs]
@@ -186,8 +186,7 @@ class Post(nn.Module):
                 )
                 losses.update(prev_offset_losses)
             else:
-                #to avoid error during inference when there's no previous image (eg. first image of a sequence)
-                prev_offset_results = offset_results
+                prev_offset_results = [None]
 
         if self.training:
             return losses

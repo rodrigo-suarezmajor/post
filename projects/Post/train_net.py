@@ -167,6 +167,7 @@ def main(args):
             )
         evaluator = KittiMotsEvaluator(dataset_name)
         inference_on_dataset(model, test_loader, evaluator)
+        return print('inference done')
 
     if args.eval_only:
         model = Trainer.build_model(cfg)

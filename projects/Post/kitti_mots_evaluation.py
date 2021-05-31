@@ -17,12 +17,11 @@ class _Instance:
         object_id (int):
     """
 
-    __slots__ = ["class_id", "bbox", "mask_rle", 'object_id', 'ttl']
+    __slots__ = ["class_id", "mask_rle", 'object_id', 'ttl']
 
-    def __init__(self, class_id, mask_rle, bbox=None, object_id=None, ttl=8):
+    def __init__(self, class_id, mask_rle, object_id=None,  ttl=8):
         self.class_id = class_id
         self.mask_rle = mask_rle
-        self.bbox = bbox
         self.object_id = object_id
         self.ttl = ttl
 
@@ -52,6 +51,7 @@ class KittiMotsEvaluator():
             instances = []
             for i in range(len(raw_instances)):
                 pred_class = raw_instances.pred_classes[i]
+                object_id = raw_instances.object_ids[i][0] if raw_instances.object_ids is not None else None
                 kitti_mots_class = self._to_kitti_mots(pred_class)
                 # check if the class is tracked in kitti mots
                 if kitti_mots_class is None: 
@@ -60,12 +60,14 @@ class KittiMotsEvaluator():
                 mask = raw_instances.pred_masks[i]
                 mask_rle = mask_util.encode(np.asarray(mask[:, :, None], dtype=np.uint8, order="F"))[0]
                 # save instance to instances
-                instances.append(_Instance(kitti_mots_class, mask_rle))
+                instances.append(_Instance(kitti_mots_class, mask_rle, object_id))
             # check if there are kitti mots instances in the frame
             if instances == []:
                 return
-            # perform iou tracking (assigns object id)
-            self._iou_tracking(instances)
+
+            if instances[0].object_id is None:
+                # perform iou tracking (assigns object id)
+                self._iou_tracking(instances)
 
             # get the time frame for the output
             frame = os.path.splitext(os.path.basename(input['file_name']))[0]
