@@ -315,7 +315,10 @@ class DefaultTrainer(TrainerBase):
         # For training, wrap with DDP. But don't need this for inference.
         if comm.get_world_size() > 1:
             model = DistributedDataParallel(
-                model, device_ids=[comm.get_local_rank()], broadcast_buffers=False
+                model,
+                device_ids=[comm.get_local_rank()],
+                broadcast_buffers=False,
+                find_unused_parameters=True,
             )
         self._trainer = (AMPTrainer if cfg.SOLVER.AMP.ENABLED else SimpleTrainer)(
             model, data_loader, optimizer

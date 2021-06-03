@@ -36,6 +36,7 @@ class DeepLabV3PlusHead(nn.Module):
         ignore_value: int = -1,
         num_classes: Optional[int] = None,
         use_depthwise_separable_conv: bool = False,
+        prev_offset: bool = False,
     ):
         """
         NOTE: this interface is experimental.
@@ -68,6 +69,7 @@ class DeepLabV3PlusHead(nn.Module):
                 will not construct a predictor.
             use_depthwise_separable_conv (bool): use DepthwiseSeparableConv2d
                 in ASPP and decoder.
+            prev_offset (bool): whether it's the previous offset head          
         """
         super().__init__()
 
@@ -81,6 +83,7 @@ class DeepLabV3PlusHead(nn.Module):
         self.loss_type        = loss_type
         self.decoder_only     = num_classes is None
         self.use_depthwise_separable_conv = use_depthwise_separable_conv
+        prev_offset = prev_offset
         # fmt: on
 
         assert (
@@ -111,6 +114,10 @@ class DeepLabV3PlusHead(nn.Module):
                     pool_kernel_size = (pool_h, pool_w)
                 else:
                     pool_kernel_size = None
+                # quick fix to change the expected in_channels for the previous offset branch
+                if prev_offset:
+                   in_channel = in_channel * 2
+
                 project_conv = ASPP(
                     in_channel,
                     aspp_channels,
