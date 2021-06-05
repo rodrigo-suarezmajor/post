@@ -154,7 +154,7 @@ def main(args):
     cfg = setup(args)
 
     if args.inference_only:
-        register_rob_mots(val=True)
+        register_rob_mots()
         model = Trainer.build_model(cfg)
         dataset_name = cfg.DATASETS.TEST[0]
         DetectionCheckpointer(model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
