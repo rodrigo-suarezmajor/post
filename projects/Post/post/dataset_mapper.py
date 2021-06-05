@@ -80,7 +80,7 @@ class PostDatasetMapper:
             augs.append(T.RandomFlip())
 
         # Assume always applies to the training set.
-        dataset_names = cfg.DATASETS.TRAIN
+        dataset_names = cfg.DATASETS.TEST
         meta = MetadataCatalog.get(dataset_names[0])
         panoptic_target_generator = PanopticTargetGenerator(
             ignore_label=meta.ignore_label,

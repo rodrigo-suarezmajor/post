@@ -26,17 +26,17 @@ class _Instance:
         self.ttl = ttl
 
 
-class KittiMotsEvaluator():
+class RobMotsEvaluator():
     def __init__(self, dataset_name):
         self._num_objects = 0
         self._old_instances = []
         self._output_dir = './output/data'
         self._cpu_device = torch.device("cpu")
-        self._thing_classes = MetadataCatalog.get(dataset_name).thing_classes
 
     def reset(self):
-        for f in os.listdir(self._output_dir):
-            os.remove(os.path.join(self._output_dir, f))
+        for dataset in os.listdir(self._output_dir):
+            for text_file in os.listdir(os.path.join(self._output_dir, dataset)):
+                os.remove(os.path.join(self._output_dir, text_file))
 
     
     def process(self, inputs, outputs):
@@ -52,15 +52,15 @@ class KittiMotsEvaluator():
             for i in range(len(raw_instances)):
                 pred_class = raw_instances.pred_classes[i]
                 object_id = raw_instances.object_ids[i][0] if raw_instances.object_ids is not None else None
-                kitti_mots_class = self._to_kitti_mots(pred_class)
-                # check if the class is tracked in kitti mots
-                if kitti_mots_class is None: 
+                class_id = self._to_coco(pred_class)
+                # check if the class is tracked in this data set
+                if class_id is None: 
                     continue
                 # get mask_rle
                 mask = raw_instances.pred_masks[i]
                 mask_rle = mask_util.encode(np.asarray(mask[:, :, None], dtype=np.uint8, order="F"))[0]
                 # save instance to instances
-                instances.append(_Instance(kitti_mots_class, mask_rle, object_id))
+                instances.append(_Instance(class_id, mask_rle, object_id))
             # check if there are kitti mots instances in the frame
             if instances == []:
                 return
@@ -77,9 +77,8 @@ class KittiMotsEvaluator():
             # get the height and width
             height = input['height']
             width = input['width']
-            
-            
-            with open(os.path.join(self._output_dir,input['sequence']) + '.txt', 'a') as fout:
+            text_pth = os.path.join(self._output_dir, input['dataset'], input['sequence']) + '.txt'
+            with open(text_pth, 'a') as fout:
                 for i in range(len(instances)):
                     object_id = instances[i].object_id
                     class_id = instances[i].class_id
@@ -98,12 +97,10 @@ class KittiMotsEvaluator():
     def evaluate(self):
         pass
 
-    def _to_kitti_mots(self, pred_class):
-        thing_class = self._thing_classes[pred_class]
-        if thing_class == "car":
-            return 1
-        elif thing_class in "person":
-            return 2
+    def _to_coco(self, pred_class):
+        coco_class = int(pred_class) + 1
+        if coco_class <= 80:
+            return coco_class
         else:
             return None
 
