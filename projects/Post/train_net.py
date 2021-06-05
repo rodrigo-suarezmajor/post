@@ -27,8 +27,8 @@ from detectron2.projects.deeplab import build_lr_scheduler
 from post import PostDatasetMapper, add_post_config
 from detectron2.solver import get_default_optimizer_params
 from detectron2.solver.build import maybe_add_gradient_clipping
-from kitti_mots import register_kitti_mots
-from kitti_mots_evaluation import KittiMotsEvaluator
+from rob_mots import register_rob_mots
+from rob_mots_evaluation import RobMotsEvaluator
 
 
 
@@ -151,10 +151,10 @@ def setup(args):
 
 
 def main(args):
-    register_kitti_mots()
     cfg = setup(args)
 
     if args.inference_only:
+        register_rob_mots(val=True)
         model = Trainer.build_model(cfg)
         dataset_name = cfg.DATASETS.TEST[0]
         DetectionCheckpointer(model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
@@ -165,7 +165,7 @@ def main(args):
             dataset_name, 
             mapper=PostDatasetMapper(cfg, test=True)
             )
-        evaluator = KittiMotsEvaluator(dataset_name)
+        evaluator = RobMotsEvaluator(dataset_name)
         inference_on_dataset(model, test_loader, evaluator)
         return print('inference done')
 

@@ -1,6 +1,6 @@
 MODEL:
   META_ARCHITECTURE: "Post"
-  WEIGHTS: "./models/model_0009999.pth"
+  WEIGHTS: "./models/model_0004999.pth"
   PIXEL_MEAN: [123.675, 116.280, 103.530]
   PIXEL_STD: [58.395, 57.120, 57.375]
   BACKBONE:
@@ -66,8 +66,8 @@ MODEL:
     SIZE_DIVISIBILITY: 64
     USE_DEPTHWISE_SEPARABLE_CONV: True
 DATASETS:
-  TRAIN: ("kitti_mots_train",)
-  TEST: ("kitti_mots_val",)
+  TRAIN: ("rob_mots_train",)
+  TEST: ("rob_mots_val",)
 SOLVER:
   OPTIMIZER: "ADAM"
   BASE_LR: 0.0005
