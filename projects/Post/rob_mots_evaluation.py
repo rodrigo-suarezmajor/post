@@ -31,6 +31,16 @@ class RobMotsEvaluator():
         self._num_objects = 0
         self._old_instances = []
         self._output_dir = './output/data'
+        self._valid_classes = {
+            "bdd_mots": [1, 2, 3, 4, 6, 8],
+            "davis_unsupervised": [1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 18, 19, 21, 22, 25, 32, 33, 34, 37, 38, 39, 68],
+            "kitti_mots": [1, 3],
+            "ovis": [1, 2, 4, 5, 9, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
+            "tao": [1, 2, 3, 4, 5, 6, 8, 9, 14, 15, 16, 17, 18, 19, 20, 21, 23, 24, 25, 26, 27, 29, 31, 33, 35, 36, 37, 38, 40, 41, 42, 43, 44, 45, 46, 49, 52, 57, 58, 60, 63, 64, 66, 68, 73, 74, 77, 80],
+            "youtube_vis": [1, 3, 4, 5, 7, 8, 9, 15, 16, 17, 18, 20, 21, 22, 23, 24, 30, 32, 37, 38, 39],
+            "mots_challenge": [1],
+            "waymo": [1, 2, 3, 4, 6, 8]
+        }
         self._cpu_device = torch.device("cpu")
 
     def reset(self):
@@ -52,9 +62,9 @@ class RobMotsEvaluator():
             for i in range(len(raw_instances)):
                 pred_class = raw_instances.pred_classes[i]
                 object_id = raw_instances.object_ids[i][0] if raw_instances.object_ids is not None else None
-                class_id = self._to_coco(pred_class)
-                # check if the class is tracked in this data set
-                if class_id is None: 
+                if (pred_class + 1) in self._valid_classes[input["dataset"]]:
+                    class_id = pred_class + 1
+                else: 
                     continue
                 # get mask_rle
                 mask = raw_instances.pred_masks[i]
@@ -77,32 +87,26 @@ class RobMotsEvaluator():
             # get the height and width
             height = input['height']
             width = input['width']
-            text_pth = os.path.join(self._output_dir, input['dataset'], input['sequence']) + '.txt'
+            text_pth = os.path.join(self._output_dir, input['dataset'], input['sequence'] + '.txt')
             with open(text_pth, 'a') as fout:
                 for i in range(len(instances)):
                     object_id = instances[i].object_id
                     class_id = instances[i].class_id
+                    score = max(0, float(raw_instances.scores[i]))
                     # "counts" is an array encoded by mask_util as a byte-stream. Python3's
                     # json writer which always produces strings cannot serialize a bytestream
                     # unless you decode it. Thankfully, utf-8 works out (which is also what
                     # the pycocotools/_mask.pyx does).
                     mask_rle = instances[i].mask_rle["counts"].decode("utf-8")
                     fout.write(
-                        "{} {} {} {} {} {}\n"
-                        .format(time_frame, object_id, class_id, height,  width,  mask_rle)
+                        "{} {} {} {:f} {} {} {}\n"
+                        .format(time_frame, object_id, class_id, score, height,  width,  mask_rle)
                     )
             fout.close()
             
 
     def evaluate(self):
         pass
-
-    def _to_coco(self, pred_class):
-        coco_class = int(pred_class) + 1
-        if coco_class <= 80:
-            return coco_class
-        else:
-            return None
 
     def _iou_tracking(self, instances):
         """

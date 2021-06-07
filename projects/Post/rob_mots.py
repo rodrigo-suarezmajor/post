@@ -92,4 +92,3 @@ def register_rob_mots():
         coco_meta = MetadataCatalog.get("coco_2017_" + d + "_panoptic").as_dict()
         coco_meta.pop("name", None)
         MetadataCatalog.get("rob_mots_" + d).set(**coco_meta)
-
