@@ -73,14 +73,14 @@ class PostDatasetMapper:
                 cfg.INPUT.MIN_SIZE_TRAIN,
                 cfg.INPUT.MAX_SIZE_TRAIN,
                 cfg.INPUT.MIN_SIZE_TRAIN_SAMPLING,
-            )
+            ),
+            T.RandomFlip()
         ]
         if cfg.INPUT.CROP.ENABLED:
             augs.append(T.RandomCrop(cfg.INPUT.CROP.TYPE, cfg.INPUT.CROP.SIZE))
-            augs.append(T.RandomFlip())
 
         # Assume always applies to the training set.
-        dataset_names = cfg.DATASETS.TEST
+        dataset_names = cfg.DATASETS.TRAIN
         meta = MetadataCatalog.get(dataset_names[0])
         panoptic_target_generator = PanopticTargetGenerator(
             ignore_label=meta.ignore_label,
@@ -118,6 +118,8 @@ class PostDatasetMapper:
         image = utils.read_image(dataset_dict["file_name"], format=self.image_format)
         if dataset_dict["prev_file_name"]:
             prev_image = utils.read_image(dataset_dict["prev_file_name"], format=self.image_format)
+        else:
+            prev_image = None
         utils.check_image_size(dataset_dict, image)
 
         # Don't generate targets for test
@@ -144,8 +146,6 @@ class PostDatasetMapper:
         # but not efficient on large generic data structures due to the use of pickle & mp.Queue.
         # Therefore it's important to use torch.Tensor.
         dataset_dict["image"] = torch.as_tensor(np.ascontiguousarray(image.transpose(2, 0, 1)))
-        dataset_dict["prev_image"] = torch.as_tensor(np.ascontiguousarray(prev_image.transpose(2, 0, 1)))
-
         if "annotations" in dataset_dict:
             dataset_dict["annotations"] = [
                 utils.transform_instance_annotations(
@@ -153,14 +153,19 @@ class PostDatasetMapper:
                 )
                 for obj in dataset_dict["annotations"]
             ]
-        
-        if "prev_annotations" in dataset_dict:
+
+        if prev_image is not None and dataset_dict["prev_annotations"]:
+            dataset_dict["prev_image"] = torch.as_tensor(np.ascontiguousarray(prev_image.transpose(2, 0, 1)))
             dataset_dict["prev_annotations"] = [
                 utils.transform_instance_annotations(
                     obj, transforms, image_shape, keypoint_hflip_indices=None
                 )
                 for obj in dataset_dict.pop("prev_annotations")
             ]
+        else:
+            dataset_dict["prev_image"] = dataset_dict["image"]
+            dataset_dict["prev_annotations"] = dataset_dict["annotations"]
+
 
         if pan_seg_gt is not None:
             # Generates training targets for Panoptic-DeepLab.

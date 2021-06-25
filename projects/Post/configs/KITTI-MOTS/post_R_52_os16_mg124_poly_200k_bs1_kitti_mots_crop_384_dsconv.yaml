@@ -1,6 +1,6 @@
 MODEL:
   META_ARCHITECTURE: "Post"
-  WEIGHTS: "./models/model_0004999.pth"
+  WEIGHTS: "./models/model_final_5e6da2.pkl"
   PIXEL_MEAN: [123.675, 116.280, 103.530]
   PIXEL_STD: [58.395, 57.120, 57.375]
   BACKBONE:
@@ -67,7 +67,7 @@ MODEL:
     USE_DEPTHWISE_SEPARABLE_CONV: True
 DATASETS:
   TRAIN: ("rob_mots_train",)
-  TEST: ("rob_mots_val",)
+  TEST: ("rob_mots_val","rob_mots_test")
 SOLVER:
   OPTIMIZER: "ADAM"
   BASE_LR: 0.0005
@@ -76,18 +76,18 @@ SOLVER:
   WEIGHT_DECAY_BIAS: 0.0
   MAX_ITER: 2000
   LR_SCHEDULER_NAME: "WarmupPolyLR"
-  IMS_PER_BATCH: 6
+  IMS_PER_BATCH: 4
 INPUT:
-  MIN_SIZE_TRAIN: (384,)
+  MIN_SIZE_TRAIN: (640,)
   MIN_SIZE_TRAIN_SAMPLING: "choice"
-  MIN_SIZE_TEST: 384
-  MAX_SIZE_TRAIN: 1152
-  MAX_SIZE_TEST: 1152
+  MIN_SIZE_TEST: 640
+  MAX_SIZE_TRAIN: 640
+  MAX_SIZE_TEST: 640
   FORMAT: "RGB"
   GAUSSIAN_SIGMA: 8
   MASK_FORMAT: "bitmask"
   CROP:
-    ENABLED: True
+    ENABLED: False
     TYPE: "absolute"
     SIZE: (384, 1152)
 DATALOADER:

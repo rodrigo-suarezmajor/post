@@ -24,10 +24,12 @@ def get_rob_mots(base_path, split):
                     line = line.strip()
                     fields = line.split()
                     frame = int(fields[0])
-                    object_id = int(fields[1])  
-                    class_id = int(fields[2])
+                    object_id = int(fields[1])
+                    if dataset == "kitti_mots":
+                        object_id = object_id % 1000 
+                    class_id = int(fields[2]) - 1
                     # Skip ignore region (id >= 100) for now
-                    if class_id >= 100:
+                    if class_id >= 99:
                         continue
                     mask = {
                         'size': [int(fields[4]), int(fields[5])], 
@@ -59,13 +61,18 @@ def get_rob_mots(base_path, split):
 
                 # Get annotations
                 if frame in annotations:
-                    annotations = annotations[frame]
+                    curr_annotations = annotations[frame]
                 else:
-                    annotations = []
+                    curr_annotations = []
+                object_ids = [anno['object_id'] for anno in curr_annotations]
+
                 # Get the previous annotations
                 prev_frame = frame - 1
                 if prev_frame >= 0 and prev_frame in annotations:
-                    prev_annotations = annotations[prev_frame]
+                    prev_annotations = [
+                        anno for anno in annotations[prev_frame]
+                        if anno['object_id'] in object_ids
+                        ]
                 else:
                     prev_annotations = []
 
@@ -74,7 +81,7 @@ def get_rob_mots(base_path, split):
                     'prev_file_name': prev_file_name, 
                     'height': height, 
                     'width': width, 
-                    'annotations': annotations, 
+                    'annotations': curr_annotations, 
                     'prev_annotations': prev_annotations,
                     'dataset': dataset,
                     'sequence': sequence,
