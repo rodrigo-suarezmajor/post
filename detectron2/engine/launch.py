@@ -67,6 +67,11 @@ def _distributed_worker(
 ):
     assert torch.cuda.is_available(), "cuda is not available. Please check your installation."
     global_rank = machine_rank * num_gpus_per_machine + local_rank
+    test = torch.cuda.device_count()
+    c1 = torch.cuda.device(0)
+    c2 = torch.cuda.device(1)
+    assert num_gpus_per_machine <= torch.cuda.device_count()
+    torch.cuda.set_device(local_rank)
     try:
         dist.init_process_group(
             backend="NCCL", init_method=dist_url, world_size=world_size, rank=global_rank
@@ -78,9 +83,6 @@ def _distributed_worker(
     # synchronize is needed here to prevent a possible timeout after calling init_process_group
     # See: https://github.com/facebookresearch/maskrcnn-benchmark/issues/172
     comm.synchronize()
-
-    assert num_gpus_per_machine <= torch.cuda.device_count()
-    torch.cuda.set_device(local_rank)
 
     # Setup the local process group (which contains ranks within the same machine)
     assert comm._LOCAL_PROCESS_GROUP is None

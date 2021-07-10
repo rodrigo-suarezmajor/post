@@ -27,10 +27,10 @@ class _Instance:
 
 
 class RobMotsEvaluator():
-    def __init__(self, dataset_name):
+    def __init__(self, output_dir):
         self._num_objects = 0
         self._old_instances = []
-        self._output_dir = './output/data'
+        self._output_dir = output_dir
         self._valid_classes = {
             "bdd_mots": [1, 2, 3, 4, 6, 8],
             "davis_unsupervised": [1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 18, 19, 21, 22, 25, 32, 33, 34, 37, 38, 39, 68],
@@ -45,6 +45,8 @@ class RobMotsEvaluator():
 
     def reset(self):
         for dataset in os.listdir(self._output_dir):
+            if dataset != 'kitti_mots':
+               continue
             for text_file in os.listdir(os.path.join(self._output_dir, dataset)):
                 os.remove(os.path.join(self._output_dir, dataset, text_file))
 
@@ -61,7 +63,7 @@ class RobMotsEvaluator():
             instances = []
             for i in range(len(raw_instances)):
                 pred_class = raw_instances.pred_classes[i]
-                object_id = raw_instances.object_ids[i][0] if raw_instances.object_ids is not None else None
+                object_id = raw_instances.object_ids[i][0] if raw_instances.has('object_ids') else None
                 if (pred_class + 1) in self._valid_classes[input["dataset"]]:
                     class_id = pred_class + 1
                 else: 

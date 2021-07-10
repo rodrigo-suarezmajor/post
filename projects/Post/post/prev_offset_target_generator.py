@@ -2,9 +2,9 @@
 import numpy as np
 import torch
 
-class InstanceTargetGenerator:
+class PrevOffsetTargetGenerator:
     """
-    Generates instance training targets for Post.
+    Generates previous offset training targets for Post.
     """
 
     def __init__(
@@ -61,14 +61,12 @@ class InstanceTargetGenerator:
         (height, width) = image_size
         center = np.zeros(image_size, dtype=np.float32)
         center_pts = []
-        offset = np.zeros((2, height, width), dtype=np.float32)
         prev_offset = np.zeros((2, height, width), dtype=np.float32)
         y_coord, x_coord = np.meshgrid(
             np.arange(height, dtype=np.float32), np.arange(width, dtype=np.float32), indexing="ij"
         )
 
         # joint_masks of all annotations, to generate center and offset weights
-        joint_mask = None
         prev_joint_mask = None
     
         for anno in annotations:
@@ -81,12 +79,6 @@ class InstanceTargetGenerator:
             center_pts.append([center_y, center_x])
             if np.isnan(center_y) or np.isnan(center_x):
                 continue
-
-            # generate joint mask
-            if joint_mask is None:
-                joint_mask = mask
-            else:
-                joint_mask = np.logical_or(joint_mask, mask)
 
             # get previous mask if there is one (same object id)   
             prev_mask = [
@@ -102,54 +94,21 @@ class InstanceTargetGenerator:
                     prev_joint_mask = prev_mask
                 else:
                     prev_joint_mask = np.logical_or(prev_joint_mask, mask)
-
-            # generate center heatmap
-            y, x = int(round(center_y)), int(round(center_x))
-            sigma = self.sigma
-            # upper left
-            ul = int(np.round(x - 3 * sigma - 1)), int(np.round(y - 3 * sigma - 1))
-            # bottom right
-            br = int(np.round(x + 3 * sigma + 2)), int(np.round(y + 3 * sigma + 2))
-
-            # start and end indices in default Gaussian image
-            gaussian_x0, gaussian_x1 = max(0, -ul[0]), min(br[0], width) - ul[0]
-            gaussian_y0, gaussian_y1 = max(0, -ul[1]), min(br[1], height) - ul[1]
-
-            # start and end indices in center heatmap image
-            center_x0, center_x1 = max(0, ul[0]), min(br[0], width)
-            center_y0, center_y1 = max(0, ul[1]), min(br[1], height)
-            center[center_y0:center_y1, center_x0:center_x1] = np.maximum(
-                center[center_y0:center_y1, center_x0:center_x1],
-                self.g[gaussian_y0:gaussian_y1, gaussian_x0:gaussian_x1],
-            )
-
-            # generate offset (2, h, w) -> (y-dir, x-dir)
-            offset[0][mask_index] = center_y - y_coord[mask_index]
-            offset[1][mask_index] = center_x - x_coord[mask_index]
+            else:
+                continue
 
             # generate previous offset (2, h, w) -> (y-dir, x-dir) i
-            if np.any(prev_mask):
-                mask_index = np.where(prev_mask)
-                prev_offset[0][mask_index] = center_y - y_coord[mask_index]
-                prev_offset[1][mask_index] = center_x - x_coord[mask_index]
+            mask_index = np.where(prev_mask)
+            prev_offset[0][mask_index] = center_y - y_coord[mask_index]
+            prev_offset[1][mask_index] = center_x - x_coord[mask_index]
 
-        # set 1 where there is some mask and 0 else where
-        center_weights = np.where(joint_mask, 1, 0)
-        offset_weights = np.where(joint_mask, 1, 0)
         if np.any(prev_joint_mask):
             prev_offset_weights = np.where(prev_joint_mask, 1, 0)
         else:
             prev_offset_weights = np.zeros(image_size, dtype=np.uint8)
         # Using None as is equivalent to using numpy.newaxis
-        center_weights = center_weights[None]
-        offset_weights = offset_weights[None]
         prev_offset_weights = prev_offset_weights[None]
         return dict(
-            center=torch.as_tensor(center.astype(np.float32)),
-            center_points=center_pts,
-            offset=torch.as_tensor(offset.astype(np.float32)),
             prev_offset=torch.as_tensor(prev_offset.astype(np.float32)),
-            center_weights=torch.as_tensor(center_weights.astype(np.float32)),
-            offset_weights=torch.as_tensor(offset_weights.astype(np.float32)),
             prev_offset_weights=torch.as_tensor(prev_offset_weights.astype(np.float32)),
         )

@@ -13,6 +13,7 @@ from detectron2.data import transforms as T
 
 from .panoptic_target_generator import PanopticTargetGenerator
 from .instance_target_generator import InstanceTargetGenerator
+from .prev_offset_target_generator import PrevOffsetTargetGenerator
 
 __all__ = ["PostDatasetMapper"]
 
@@ -36,6 +37,7 @@ class PostDatasetMapper:
         instance_mask_format: str = "bitmask",
         panoptic_target_generator: Callable,
         instance_target_generator: Callable,
+        prev_offset_target_generator: Callable,
         test: bool = False
     ):
         """
@@ -49,8 +51,10 @@ class PostDatasetMapper:
                 masks into this format.            
             panoptic_target_generator: a callable that takes "panoptic_seg" and
                 "segments_info" to generate training targets for the model.
-            instance_target_generator: a callable that takes "instances"
+            instance_target_generator: a callable that takes "segmentation"
                 to generate training targets for the model.
+            prev_offset_target_generator: a callable that takes "segmentation"
+                to generate only previous offset training targets for the model.
             test: whether to load val/test dataset, no targets will be applied, batchsize == 1
         """
         # fmt: off
@@ -65,6 +69,7 @@ class PostDatasetMapper:
 
         self.panoptic_target_generator = panoptic_target_generator
         self.instance_target_generator = instance_target_generator
+        self.prev_offset_target_generator = prev_offset_target_generator
 
     @classmethod
     def from_config(cls, cfg):
@@ -97,11 +102,17 @@ class PostDatasetMapper:
             sigma=cfg.INPUT.GAUSSIAN_SIGMA,
         )
 
+        prev_offset_target_generator = PrevOffsetTargetGenerator(
+            ignore_label=meta.ignore_label,
+            sigma=cfg.INPUT.GAUSSIAN_SIGMA,
+        )
+
         ret = {
             "augmentations": augs,
             "image_format": cfg.INPUT.FORMAT,
             "panoptic_target_generator": panoptic_target_generator,
             "instance_target_generator": instance_target_generator,
+            "prev_offset_target_generator": prev_offset_target_generator,
         }
         return ret
 
@@ -171,8 +182,12 @@ class PostDatasetMapper:
             # Generates training targets for Panoptic-DeepLab.
             targets = self.panoptic_target_generator(rgb2id(pan_seg_gt), dataset_dict["segments_info"])
             dataset_dict.update(targets)
-        else:
+        # Change to generate instance targets
+        elif False:
             targets = self.instance_target_generator(dataset_dict["annotations"], dataset_dict["prev_annotations"])
+            dataset_dict.update(targets)
+        else:
+            targets = self.prev_offset_target_generator(dataset_dict["annotations"], dataset_dict["prev_annotations"])
             dataset_dict.update(targets)
 
         return dataset_dict

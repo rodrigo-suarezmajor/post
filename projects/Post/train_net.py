@@ -62,8 +62,8 @@ class Trainer(DefaultTrainer):
         """
         if cfg.MODEL.PANOPTIC_DEEPLAB.BENCHMARK_NETWORK_SPEED:
             return None
-        # Don't evaluate for kitti mots
-        if dataset_name == 'kitti_mots_val':
+        # Don't evaluate for rob mots
+        if dataset_name == 'rob_mots_val':
             return None
         if output_folder is None:
             output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
@@ -165,7 +165,9 @@ def main(args):
             dataset_name, 
             mapper=PostDatasetMapper(cfg, test=True)
             )
-        evaluator = RobMotsEvaluator(dataset_name)
+        model_name = cfg.MODEL.WEIGHTS.split('/')[-1].split('.')[0]
+        output_dir = os.path.join("./output/trackers", 'val' , model_name, 'data')
+        evaluator = RobMotsEvaluator(output_dir)
         inference_on_dataset(model, test_loader, evaluator)
         return print('inference done')
 

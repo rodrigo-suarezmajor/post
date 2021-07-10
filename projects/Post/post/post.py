@@ -42,7 +42,11 @@ class Post(nn.Module):
         super().__init__()
         self.backbone = build_backbone(cfg)
         self.sem_seg_head = build_sem_seg_head(cfg, self.backbone.output_shape())
+        for param in self.sem_seg_head.parameters():
+            param.requires_grad = False
         self.ins_embed_head = build_ins_embed_branch(cfg, self.backbone.output_shape())
+        for param in self.sem_seg_head.parameters():
+            param.requires_grad = False
         self.prev_offset_head = build_prev_offset_head(cfg, self.backbone.output_shape())
         self.register_buffer("pixel_mean", torch.Tensor(cfg.MODEL.PIXEL_MEAN).view(-1, 1, 1), False)
         self.register_buffer("pixel_std", torch.Tensor(cfg.MODEL.PIXEL_STD).view(-1, 1, 1), False)
@@ -119,51 +123,51 @@ class Post(nn.Module):
             prev_features = self.backbone(prev_images.tensor)
 
         losses = {}
-        if "sem_seg" in batched_inputs[0] and self.training:
-            targets = [x["sem_seg"].to(self.device) for x in batched_inputs]
-            targets = ImageList.from_tensors(
-                targets, size_divisibility, self.sem_seg_head.ignore_value
-            ).tensor
-            if "sem_seg_weights" in batched_inputs[0]:
-                # The default D2 DatasetMapper may not contain "sem_seg_weights"
-                # Avoid error in testing when default DatasetMapper is used.
-                weights = [x["sem_seg_weights"].to(self.device) for x in batched_inputs]
-                weights = ImageList.from_tensors(weights, size_divisibility).tensor
+        # Don't predict semantic and instance segmentation when training on robmots
+        if not self.training:
+            if "sem_seg" in batched_inputs[0] and self.training:
+                targets = [x["sem_seg"].to(self.device) for x in batched_inputs]
+                targets = ImageList.from_tensors(
+                    targets, size_divisibility, self.sem_seg_head.ignore_value
+                ).tensor
+                if "sem_seg_weights" in batched_inputs[0]:
+                    # The default D2 DatasetMapper may not contain "sem_seg_weights"
+                    # Avoid error in testing when default DatasetMapper is used.
+                    weights = [x["sem_seg_weights"].to(self.device) for x in batched_inputs]
+                    weights = ImageList.from_tensors(weights, size_divisibility).tensor
+                else:
+                    weights = None
             else:
+                targets = None
                 weights = None
-        else:
-            targets = None
-            weights = None
 
-        # Check if there are targets or running inference
-        if targets is not None or not self.training:
             sem_seg_results, sem_seg_losses = self.sem_seg_head(features, targets, weights)
             losses.update(sem_seg_losses)
 
-        if "center" in batched_inputs[0] and "offset" in batched_inputs[0] and self.training:
-            center_targets = [x["center"].to(self.device) for x in batched_inputs]
-            center_targets = ImageList.from_tensors(
-                center_targets, size_divisibility
-            ).tensor.unsqueeze(1)
-            center_weights = [x["center_weights"].to(self.device) for x in batched_inputs]
-            center_weights = ImageList.from_tensors(center_weights, size_divisibility).tensor
+            if "center" in batched_inputs[0] and "offset" in batched_inputs[0] and self.training:
+                center_targets = [x["center"].to(self.device) for x in batched_inputs]
+                center_targets = ImageList.from_tensors(
+                    center_targets, size_divisibility
+                ).tensor.unsqueeze(1)
+                center_weights = [x["center_weights"].to(self.device) for x in batched_inputs]
+                center_weights = ImageList.from_tensors(center_weights, size_divisibility).tensor
 
-            offset_targets = [x["offset"].to(self.device) for x in batched_inputs]
-            offset_targets = ImageList.from_tensors(offset_targets, size_divisibility).tensor
-            offset_weights = [x["offset_weights"].to(self.device) for x in batched_inputs]
-            offset_weights = ImageList.from_tensors(offset_weights, size_divisibility).tensor
-        else:
-            center_targets = None
-            center_weights = None
+                offset_targets = [x["offset"].to(self.device) for x in batched_inputs]
+                offset_targets = ImageList.from_tensors(offset_targets, size_divisibility).tensor
+                offset_weights = [x["offset_weights"].to(self.device) for x in batched_inputs]
+                offset_weights = ImageList.from_tensors(offset_weights, size_divisibility).tensor
+            else:
+                center_targets = None
+                center_weights = None
 
-            offset_targets = None
-            offset_weights = None
+                offset_targets = None
+                offset_weights = None
 
-        center_results, offset_results, center_losses, offset_losses = self.ins_embed_head(
-            features, center_targets, center_weights, offset_targets, offset_weights
-        )
-        losses.update(center_losses)
-        losses.update(offset_losses)
+            center_results, offset_results, center_losses, offset_losses = self.ins_embed_head(
+                features, center_targets, center_weights, offset_targets, offset_weights
+            )
+            losses.update(center_losses)
+            losses.update(offset_losses)
 
         if 'prev_offset' in batched_inputs[0] and self.training:
             prev_offset_targets = [x["prev_offset"].to(self.device) for x in batched_inputs]
@@ -291,6 +295,10 @@ class PanopticDeepLabSemSegHead(DeepLabV3PlusHead):
         self.predictor = Conv2d(head_channels, num_classes, kernel_size=1)
         nn.init.normal_(self.predictor.weight, 0, 0.001)
         nn.init.constant_(self.predictor.bias, 0)
+
+        # Don't train on rob mots
+        for param in self.parameters():
+            param.requires_grad = False
 
         if loss_type == "cross_entropy":
             self.loss = nn.CrossEntropyLoss(reduction="mean", ignore_index=ignore_value)
@@ -452,6 +460,10 @@ class PanopticDeepLabInsEmbedHead(DeepLabV3PlusHead):
         self.offset_predictor = Conv2d(head_channels, 2, kernel_size=1)
         nn.init.normal_(self.offset_predictor.weight, 0, 0.001)
         nn.init.constant_(self.offset_predictor.bias, 0)
+
+        # Don't train on rob mots
+        for param in self.parameters():
+            param.requires_grad = False
 
         self.center_loss = nn.MSELoss(reduction="none")
         self.offset_loss = nn.L1Loss(reduction="none")

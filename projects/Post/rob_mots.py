@@ -8,6 +8,8 @@ def get_rob_mots(base_path, split):
     images = []
     path = os.path.join(base_path, split)
     for dataset in sorted(os.listdir(path)):
+        if split == 'val' and dataset != 'kitti_mots':
+            continue
         seq_path = os.path.join(path, dataset)
         for sequence in sorted(os.listdir(seq_path)):
             image_list = sorted(os.listdir(os.path.join(seq_path,sequence)))
@@ -19,7 +21,7 @@ def get_rob_mots(base_path, split):
             annotations = {}
             if split == 'train':
                 # Get annotations of the whole sequence
-                f = open(os.path.join(base_path, "gt", dataset, "data", sequence + ".txt"), "r")
+                f = open(os.path.join(base_path, "gt", split, dataset, "data", sequence + ".txt"), "r")
                 for line in f:
                     line = line.strip()
                     fields = line.split()
