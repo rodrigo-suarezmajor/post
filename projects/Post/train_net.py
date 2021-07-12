@@ -51,6 +51,15 @@ class Trainer(DefaultTrainer):
     are working on a new research project. In that case you can use the cleaner
     "SimpleTrainer", or write your own training loop.
     """
+    @classmethod
+    def build_model(cls, cfg):
+        model = super().build_model(cfg)
+        for child in model.children():
+            if type(child).__name__ == "PrevOffsetHead":
+                continue
+            for param in child.parameters():
+                param.requires_grad = False
+        return model
 
     @classmethod
     def build_evaluator(cls, cfg, dataset_name, output_folder=None):
@@ -118,7 +127,7 @@ class Trainer(DefaultTrainer):
         Build an optimizer from config.
         """
         params = get_default_optimizer_params(
-            model,
+            model.prev_offset_head,
             weight_decay=cfg.SOLVER.WEIGHT_DECAY,
             weight_decay_norm=cfg.SOLVER.WEIGHT_DECAY_NORM,
         )

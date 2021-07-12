@@ -296,10 +296,6 @@ class PanopticDeepLabSemSegHead(DeepLabV3PlusHead):
         nn.init.normal_(self.predictor.weight, 0, 0.001)
         nn.init.constant_(self.predictor.bias, 0)
 
-        # Don't train on rob mots
-        for param in self.parameters():
-            param.requires_grad = False
-
         if loss_type == "cross_entropy":
             self.loss = nn.CrossEntropyLoss(reduction="mean", ignore_index=ignore_value)
         elif loss_type == "hard_pixel_mining":
@@ -460,10 +456,6 @@ class PanopticDeepLabInsEmbedHead(DeepLabV3PlusHead):
         self.offset_predictor = Conv2d(head_channels, 2, kernel_size=1)
         nn.init.normal_(self.offset_predictor.weight, 0, 0.001)
         nn.init.constant_(self.offset_predictor.bias, 0)
-
-        # Don't train on rob mots
-        for param in self.parameters():
-            param.requires_grad = False
 
         self.center_loss = nn.MSELoss(reduction="none")
         self.offset_loss = nn.L1Loss(reduction="none")
