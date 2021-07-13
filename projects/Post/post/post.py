@@ -42,11 +42,7 @@ class Post(nn.Module):
         super().__init__()
         self.backbone = build_backbone(cfg)
         self.sem_seg_head = build_sem_seg_head(cfg, self.backbone.output_shape())
-        for param in self.sem_seg_head.parameters():
-            param.requires_grad = False
         self.ins_embed_head = build_ins_embed_branch(cfg, self.backbone.output_shape())
-        for param in self.sem_seg_head.parameters():
-            param.requires_grad = False
         self.prev_offset_head = build_prev_offset_head(cfg, self.backbone.output_shape())
         self.register_buffer("pixel_mean", torch.Tensor(cfg.MODEL.PIXEL_MEAN).view(-1, 1, 1), False)
         self.register_buffer("pixel_std", torch.Tensor(cfg.MODEL.PIXEL_STD).view(-1, 1, 1), False)

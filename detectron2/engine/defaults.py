@@ -17,6 +17,7 @@ from collections import OrderedDict
 from typing import Optional
 import torch
 from fvcore.nn.precise_bn import get_bn_modules
+from torch.nn.modules.batchnorm import SyncBatchNorm
 from torch.nn.parallel import DistributedDataParallel
 
 import detectron2.data.transforms as T
@@ -363,6 +364,12 @@ class DefaultTrainer(TrainerBase):
             # broadcast loaded data/model from the first rank, because other
             # machines may not have access to the checkpoint file
             if TORCH_VERSION >= (1, 7):
+                for child in self.model.module.children():
+                    if type(child).__name__ == "PrevOffsetHead":
+                        continue
+                    for module in child.modules():
+                        if isinstance(module, SyncBatchNorm):
+                            module.eval()
                 self.model._sync_params_and_buffers()
             self.start_iter = comm.all_gather(self.start_iter)[0]
 
