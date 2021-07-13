@@ -8,8 +8,6 @@ def get_rob_mots(base_path, split):
     images = []
     path = os.path.join(base_path, split)
     for dataset in sorted(os.listdir(path)):
-        if split == 'val' and dataset != 'kitti_mots':
-            continue
         seq_path = os.path.join(path, dataset)
         for sequence in sorted(os.listdir(seq_path)):
             image_list = sorted(os.listdir(os.path.join(seq_path,sequence)))

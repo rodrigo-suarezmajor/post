@@ -45,8 +45,6 @@ class RobMotsEvaluator():
 
     def reset(self):
         for dataset in os.listdir(self._output_dir):
-            if dataset != 'kitti_mots':
-               continue
             for text_file in os.listdir(os.path.join(self._output_dir, dataset)):
                 os.remove(os.path.join(self._output_dir, dataset, text_file))
 
