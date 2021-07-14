@@ -140,30 +140,30 @@ class Post(nn.Module):
             sem_seg_results, sem_seg_losses = self.sem_seg_head(features, targets, weights)
             losses.update(sem_seg_losses)
 
-            if "center" in batched_inputs[0] and "offset" in batched_inputs[0] and self.training:
-                center_targets = [x["center"].to(self.device) for x in batched_inputs]
-                center_targets = ImageList.from_tensors(
-                    center_targets, size_divisibility
-                ).tensor.unsqueeze(1)
-                center_weights = [x["center_weights"].to(self.device) for x in batched_inputs]
-                center_weights = ImageList.from_tensors(center_weights, size_divisibility).tensor
+        if "center" in batched_inputs[0] and "offset" in batched_inputs[0] and self.training:
+            center_targets = [x["center"].to(self.device) for x in batched_inputs]
+            center_targets = ImageList.from_tensors(
+                center_targets, size_divisibility
+            ).tensor.unsqueeze(1)
+            center_weights = [x["center_weights"].to(self.device) for x in batched_inputs]
+            center_weights = ImageList.from_tensors(center_weights, size_divisibility).tensor
 
-                offset_targets = [x["offset"].to(self.device) for x in batched_inputs]
-                offset_targets = ImageList.from_tensors(offset_targets, size_divisibility).tensor
-                offset_weights = [x["offset_weights"].to(self.device) for x in batched_inputs]
-                offset_weights = ImageList.from_tensors(offset_weights, size_divisibility).tensor
-            else:
-                center_targets = None
-                center_weights = None
+            offset_targets = [x["offset"].to(self.device) for x in batched_inputs]
+            offset_targets = ImageList.from_tensors(offset_targets, size_divisibility).tensor
+            offset_weights = [x["offset_weights"].to(self.device) for x in batched_inputs]
+            offset_weights = ImageList.from_tensors(offset_weights, size_divisibility).tensor
+        else:
+            center_targets = None
+            center_weights = None
 
-                offset_targets = None
-                offset_weights = None
+            offset_targets = None
+            offset_weights = None
 
-            center_results, offset_results, center_losses, offset_losses = self.ins_embed_head(
-                features, center_targets, center_weights, offset_targets, offset_weights
-            )
-            losses.update(center_losses)
-            losses.update(offset_losses)
+        center_results, offset_results, center_losses, offset_losses = self.ins_embed_head(
+            features, center_targets, center_weights, offset_targets, offset_weights
+        )
+        losses.update(center_losses)
+        losses.update(offset_losses)
 
         if 'prev_offset' in batched_inputs[0] and self.training:
             prev_offset_targets = [x["prev_offset"].to(self.device) for x in batched_inputs]

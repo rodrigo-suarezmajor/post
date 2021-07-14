@@ -6,6 +6,7 @@ Panoptic-DeepLab Training Script.
 This script is a simplified version of the training script in detectron2/tools.
 """
 
+
 import os
 import torch
 
@@ -29,6 +30,9 @@ from detectron2.solver import get_default_optimizer_params
 from detectron2.solver.build import maybe_add_gradient_clipping
 from rob_mots import register_rob_mots
 from rob_mots_evaluation import RobMotsEvaluator
+from torch.nn.modules.batchnorm import SyncBatchNorm
+from torch.nn.parallel.distributed import DistributedDataParallel
+from detectron2.modeling.backbone.resnet import ResNet
 
 
 
@@ -51,16 +55,44 @@ class Trainer(DefaultTrainer):
     are working on a new research project. In that case you can use the cleaner
     "SimpleTrainer", or write your own training loop.
     """
-    @classmethod
-    def build_model(cls, cfg):
-        model = super().build_model(cfg)
-        for child in model.children():
-            if type(child).__name__ == "PrevOffsetHead":
-                continue
-            for param in child.parameters():
-                param.requires_grad = False
-        return model
 
+    def resume_or_load(self, resume=True, train_branch=[]):
+        """
+        If `resume==True` and `cfg.OUTPUT_DIR` contains the last checkpoint (defined by
+        a `last_checkpoint` file), resume from the file. Resuming means loading all
+        available states (eg. optimizer and scheduler) and update iteration counter
+        from the checkpoint. ``cfg.MODEL.WEIGHTS`` will not be used.
+
+        Otherwise, this is considered as an independent training. The method will load model
+        weights from the file `cfg.MODEL.WEIGHTS` (but will not load other states) and start
+        from iteration 0.
+
+        Args:
+            resume (bool): whether to do resume or not
+        """
+        checkpoint = self.checkpointer.resume_or_load(self.cfg.MODEL.WEIGHTS, resume=resume)
+        if resume and self.checkpointer.has_checkpoint():
+            self.start_iter = checkpoint.get("iteration", -1) + 1
+            # The checkpoint stores the training iteration that just finished, thus we start
+            # at the next iteration (or iter zero if there's no checkpoint).
+        if isinstance(self.model, DistributedDataParallel):
+            # broadcast loaded data/model from the first rank, because other
+            # machines may not have access to the checkpoint file
+            for child in self.model.module.children():
+                if not train_branch:
+                    continue
+                if "previous_offset" in train_branch and type(child).__name__ == "PrevOffsetHead":
+                    continue
+                if "instance" in train_branch and type(child).__name__ == "PanopticDeepLabInsEmbedHead":
+                    continue
+                for param in child.parameters():
+                    param.requires_grad = False
+                for module in child.modules():
+                    if isinstance(module, SyncBatchNorm):
+                        module.eval()
+            self.model._sync_params_and_buffers()
+            self.start_iter = comm.all_gather(self.start_iter)[0]
+ 
     @classmethod
     def build_evaluator(cls, cfg, dataset_name, output_folder=None):
         """
@@ -190,7 +222,7 @@ def main(args):
         
 
     trainer = Trainer(cfg)
-    trainer.resume_or_load(resume=args.resume)
+    trainer.resume_or_load(resume=args.resume, train_branch=args.train_branch)
     return trainer.train()
 
 

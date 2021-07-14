@@ -90,6 +90,7 @@ Run on multiple machines:
     )
     parser.add_argument("--eval-only", action="store_true", help="perform evaluation only")
     parser.add_argument("--inference-only", action="store_true", help="perform inference only without evaluation")
+    parser.add_argument("--train-branch", nargs='+', default=[], help="which branches ['resnet','semantic','instance','previous'] of the network to train, default train all branches")
     parser.add_argument("--num-gpus", type=int, default=1, help="number of gpus *per machine*")
     parser.add_argument("--num-machines", type=int, default=1, help="total number of machines")
     parser.add_argument(
@@ -364,12 +365,6 @@ class DefaultTrainer(TrainerBase):
             # broadcast loaded data/model from the first rank, because other
             # machines may not have access to the checkpoint file
             if TORCH_VERSION >= (1, 7):
-                for child in self.model.module.children():
-                    if type(child).__name__ == "PrevOffsetHead":
-                        continue
-                    for module in child.modules():
-                        if isinstance(module, SyncBatchNorm):
-                            module.eval()
                 self.model._sync_params_and_buffers()
             self.start_iter = comm.all_gather(self.start_iter)[0]
 

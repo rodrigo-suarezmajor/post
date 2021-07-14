@@ -183,7 +183,7 @@ class PostDatasetMapper:
             targets = self.panoptic_target_generator(rgb2id(pan_seg_gt), dataset_dict["segments_info"])
             dataset_dict.update(targets)
         # Change to generate instance targets
-        elif False:
+        elif True:
             targets = self.instance_target_generator(dataset_dict["annotations"], dataset_dict["prev_annotations"])
             dataset_dict.update(targets)
         else:
