@@ -308,6 +308,7 @@ class AugInput:
         self,
         image: np.ndarray,
         *,
+        prev_image: np.ndarray = None,
         boxes: Optional[np.ndarray] = None,
         sem_seg: Optional[np.ndarray] = None,
     ):
@@ -316,12 +317,18 @@ class AugInput:
             image (ndarray): (H,W) or (H,W,C) ndarray of type uint8 in range [0, 255], or
                 floating point in range [0, 1] or [0, 255]. The meaning of C is up
                 to users.
+            prev_image (ndarray): (H,W) or (H,W,C) ndarray of type uint8 in range [0, 255], or
+                floating point in range [0, 1] or [0, 255]. The meaning of C is up
+                to users.
             boxes (ndarray or None): Nx4 float32 boxes in XYXY_ABS mode
             sem_seg (ndarray or None): HxW uint8 semantic segmentation mask. Each element
                 is an integer label of pixel.
         """
         _check_img_dtype(image)
+        if prev_image is not None:
+            _check_img_dtype(prev_image)
         self.image = image
+        self.prev_image = prev_image
         self.boxes = boxes
         self.sem_seg = sem_seg
 
@@ -333,6 +340,8 @@ class AugInput:
         as ``self.image`` will return transformed data.
         """
         self.image = tfm.apply_image(self.image)
+        if self.prev_image is not None:
+            self.prev_image = tfm.apply_image(self.prev_image)
         if self.boxes is not None:
             self.boxes = tfm.apply_box(self.boxes)
         if self.sem_seg is not None:

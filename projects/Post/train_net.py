@@ -13,7 +13,7 @@ import detectron2.data.transforms as T
 import detectron2.utils.comm as comm
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.config import get_cfg
-from detectron2.data import MetadataCatalog, build_detection_train_loader, build_detection_test_loader
+from detectron2.data import MetadataCatalog, DatasetMapper, build_detection_train_loader, build_detection_test_loader
 from detectron2.engine import DefaultTrainer, default_argument_parser, default_setup, launch
 from detectron2.evaluation import (
     CityscapesInstanceEvaluator,
@@ -24,14 +24,12 @@ from detectron2.evaluation import (
     inference_on_dataset
 )
 from detectron2.projects.deeplab import build_lr_scheduler
-from detectron2.projects.panoptic_deeplab import (
-    PanopticDeeplabDatasetMapper,
-    add_panoptic_deeplab_config,
-)
+from post import PostDatasetMapper, add_post_config
 from detectron2.solver import get_default_optimizer_params
 from detectron2.solver.build import maybe_add_gradient_clipping
-import kitti_mots
-import kitti_mots_evaluation
+from rob_mots import register_rob_mots
+from rob_mots_evaluation import RobMotsEvaluator
+
 
 
 def build_sem_seg_train_aug(cfg):
@@ -63,6 +61,9 @@ class Trainer(DefaultTrainer):
         script and do not have to worry about the hacky if-else logic here.
         """
         if cfg.MODEL.PANOPTIC_DEEPLAB.BENCHMARK_NETWORK_SPEED:
+            return None
+        # Don't evaluate for kitti mots
+        if dataset_name == 'kitti_mots_val':
             return None
         if output_folder is None:
             output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
@@ -100,7 +101,7 @@ class Trainer(DefaultTrainer):
 
     @classmethod
     def build_train_loader(cls, cfg):
-        mapper = PanopticDeeplabDatasetMapper(cfg, augmentations=build_sem_seg_train_aug(cfg))
+        mapper = PostDatasetMapper(cfg, augmentations=build_sem_seg_train_aug(cfg))
         return build_detection_train_loader(cfg, mapper=mapper)
 
     @classmethod
@@ -141,7 +142,7 @@ def setup(args):
     Create configs and perform basic setups.
     """
     cfg = get_cfg()
-    add_panoptic_deeplab_config(cfg)
+    add_post_config(cfg)
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
     cfg.freeze()
@@ -153,13 +154,18 @@ def main(args):
     cfg = setup(args)
 
     if args.inference_only:
+        register_rob_mots(val=True)
         model = Trainer.build_model(cfg)
+        dataset_name = cfg.DATASETS.TEST[0]
         DetectionCheckpointer(model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
             cfg.MODEL.WEIGHTS, resume=args.resume
         )
-        kitti_mots.register()
-        test_loader = build_detection_test_loader(cfg, "kitti_mots_val")
-        evaluator = kitti_mots_evaluation.KittiMotsEvaluator(cfg.DATASETS.TRAIN[0])
+        test_loader = build_detection_test_loader(
+            cfg, 
+            dataset_name, 
+            mapper=PostDatasetMapper(cfg, test=True)
+            )
+        evaluator = RobMotsEvaluator(dataset_name)
         inference_on_dataset(model, test_loader, evaluator)
         return print('inference done')
 
