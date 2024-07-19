@@ -4,7 +4,6 @@
 <img width="2054" alt="architecture" src="https://github.com/user-attachments/assets/adbcfe36-7b6e-441e-b5b7-4e40a5da25b8">
 
 ## Abstract
-Abstract
 The long-standing goal of computer vision is to gain a high-level understanding of digital images and videos, similar to how the human brain is able to perceive objects, movement and depth in it’s visual field.
 Recently advances in Convolutional Neural Networks have pushed computer vision to the limit. By dividing the task of human-like visual perception into bite-sized challenges such as classification, segmentation and tracking and establishing benchmarks significant progress was made, even outperforming humans in certain areas. However, there is still a long way to go in building a unified model, that performs all these tasks at once and is also capable of working robustly in a real world scenario and not only on a given dataset.
 The proposed robust one-stage segmentation and tracking model aims to further this quest, by unifying the tasks of panoptic segmentation and tracking. Furthermore, our goal for this model is not to be bound to any specific benchmark dataset, but to provide robustness on real world examples.
