@@ -1,7 +1,14 @@
 # POST: Panoptic Segmentation and Tracking
 
 ## Architecture
-![Architecture 001](https://user-images.githubusercontent.com/59184079/117012491-4a618b80-acef-11eb-8f93-64f6eb4c12c0.png)
+<img width="2054" alt="architecture" src="https://github.com/user-attachments/assets/adbcfe36-7b6e-441e-b5b7-4e40a5da25b8">
+
+## Abstract
+Abstract
+The long-standing goal of computer vision is to gain a high-level understanding of digital images and videos, similar to how the human brain is able to perceive objects, movement and depth in it’s visual field.
+Recently advances in Convolutional Neural Networks have pushed computer vision to the limit. By dividing the task of human-like visual perception into bite-sized challenges such as classification, segmentation and tracking and establishing benchmarks significant progress was made, even outperforming humans in certain areas. However, there is still a long way to go in building a unified model, that performs all these tasks at once and is also capable of working robustly in a real world scenario and not only on a given dataset.
+The proposed robust one-stage segmentation and tracking model aims to further this quest, by unifying the tasks of panoptic segmentation and tracking. Furthermore, our goal for this model is not to be bound to any specific benchmark dataset, but to provide robustness on real world examples.
+We accomplish this goal by extending Panoptic-DeepLab [Che+20] by an previous offset branch, to enable it to track objects in a video. Furthermore, we train this model on multiple datasets simultaneously without setting hyperparameters for any specific dataset.
 
 ## Installation
 Install Detectron2 following [the instructions](https://detectron2.readthedocs.io/tutorials/install.html).
